@@ -6,6 +6,8 @@ A tracker dashboard kept in GitHub and updated by Claude Code.
 
 Open **`OSB_iGaming_National_Tracker.html`**: one self-contained file with the data and libraries embedded. It works offline and opens by double-click. On GitHub: click the file > **Download raw file**.
 
+It is also published as a private Claude artifact: https://claude.ai/artifact/2HadKEUvvZa7uE7nHBanfD (share it from the page's Share menu). The artifact is a snapshot; after a data refresh, ask Claude to republish `OSB_iGaming_National_Tracker.html` to that link.
+
 ## Layout
 
 ```

@@ -27,3 +27,5 @@ End with a short summary: verified changes (with sources), unconfirmed items, li
 ```text
 Push to a new branch named claude/refresh-YYYY-MM-DD and open a pull request into main describing the changes.
 ```
+
+**After each update:** the Claude artifact (https://claude.ai/artifact/2HadKEUvvZa7uE7nHBanfD) is a snapshot of `OSB_iGaming_National_Tracker.html`. To refresh it, ask Claude to republish that file to the artifact's link.
