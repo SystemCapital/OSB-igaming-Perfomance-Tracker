@@ -1,0 +1,44 @@
+[
+ [
+  "Connecticut",
+  "Operator dataset (brands)",
+  "done",
+  "Handle, GGR, Promos, Tax · from 2021"
+ ],
+ [
+  "New Jersey",
+  "Operator dataset (brands)",
+  "done",
+  "GGR, Promos, Tax by brand · history to 2013 (handle not reported)"
+ ],
+ [
+  "Michigan",
+  "Operator dataset (brands)",
+  "done",
+  "GGR, Promos, Tax by brand · from 2021 (handle not reported)"
+ ],
+ [
+  "Pennsylvania",
+  "PGCB Interactive Gaming Excel",
+  "done",
+  "GGR + Handle by operator · iLottery excluded (PGCB casino only)"
+ ],
+ [
+  "Delaware",
+  "Operator dataset (brands)",
+  "done",
+  "Handle, GGR, Promos, Tax by brand · history to 2013"
+ ],
+ [
+  "Rhode Island",
+  "Operator dataset (brands)",
+  "done",
+  "GGR, Handle, Tax (Bally’s)"
+ ],
+ [
+  "West Virginia",
+  "Operator dataset (brands)",
+  "done",
+  "GGR, Handle, Tax by operator · from 2020"
+ ]
+]

@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>US iGaming &amp; OSB National Tracker</title>
+    <script src="vendor/chart.umd.min.js" data-vendor="chart.umd.min.js"></script>
+    <script src="vendor/chartjs-adapter-date-fns.bundle.min.js" data-vendor="chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-card: #1e293b;
+            --bg-header: #0f172a;
+            --border: #334155;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --positive: #22c55e;
+            --negative: #ef4444;
+            --accent: #3b82f6;
+            --gap: 16px;
+            --radius: 8px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.5; font-size: 14px; }
+        .container { max-width: 1600px; margin: 0 auto; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+        header h1 { font-size: 28px; font-weight: 700; }
+        .subtitle { color: var(--text-secondary); font-size: 13px; margin-top: 2px; }
+        .filters { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .filter-group { display: flex; align-items: center; gap: 6px; }
+        .filter-group label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        select, .view-btn { padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-primary); font-size: 13px; cursor: pointer; }
+        select:focus { outline: none; border-color: var(--accent); }
+        select option { background: var(--bg-card); }
+        .view-btn { transition: all 0.15s; }
+        .view-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .view-btn:hover { background: #334155; }
+        .view-btn.active:hover { background: #2563eb; }
+
+        /* Big vertical toggle */
+        .vertical-toggle { display: inline-flex; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 4px; gap: 4px; }
+        .vt-btn { padding: 10px 26px; border: none; border-radius: 7px; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 15px; font-weight: 600; transition: all 0.15s; }
+        .vt-btn.active { color: #fff; }
+        .vt-btn.osb.active { background: #3b82f6; }
+        .vt-btn.igaming.active { background: #8b5cf6; }
+
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--gap); margin-bottom: 24px; }
+        .kpi-card { background: var(--bg-card); border-radius: var(--radius); padding: 18px 20px; border: 1px solid var(--border); }
+        .kpi-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .kpi-value { font-size: 25px; font-weight: 700; margin-bottom: 2px; }
+        .kpi-change { font-size: 12px; font-weight: 500; }
+        .kpi-change.positive { color: var(--positive); }
+        .kpi-change.negative { color: var(--negative); }
+        .kpi-sub { font-size: 11px; color: var(--text-muted); }
+
+        .controls { background: var(--bg-card); border-radius: var(--radius); padding: 16px 20px; border: 1px solid var(--border); margin-bottom: 24px; }
+        .controls-head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; }
+        .controls-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .controls-actions button { font-size: 11px; padding: 4px 10px; margin-left: 6px; border:1px solid var(--border); border-radius:4px; background:transparent; color:var(--text-secondary); cursor:pointer; }
+        .controls-actions button:hover { color: var(--text-primary); }
+        .state-toggles { display: flex; flex-wrap: wrap; gap: 8px; }
+        .st-btn { padding: 5px 12px; border-radius: 20px; border: 2px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.15s; display:flex; align-items:center; gap:6px; }
+        .st-btn .dot { width:9px; height:9px; border-radius:50%; background: var(--border); }
+        .st-btn.active { color: #fff; border-color: currentColor; }
+        .st-btn:hover { background: rgba(255,255,255,0.05); }
+
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); margin-bottom: 24px; }
+        .chart-card { background: var(--bg-card); border-radius: var(--radius); padding: 20px; border: 1px solid var(--border); position: relative; }
+        .chart-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+        .chart-sub { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; }
+        .chart-box { position: relative; height: 340px; }
+
+        .table-wrap { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; margin-bottom: 24px; }
+        .table-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px 8px; }
+        .table-header h3 { font-size: 15px; font-weight: 600; }
+        .table-scroll { overflow-x: auto; max-height: 520px; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: var(--bg-primary); padding: 10px 14px; text-align: left; font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); cursor: pointer; white-space: nowrap; user-select: none; position: sticky; top: 0; }
+        th:hover { color: var(--text-primary); }
+        th .sort-arrow { margin-left: 4px; opacity: 0.4; }
+        th.sorted .sort-arrow { opacity: 1; }
+        td { padding: 9px 14px; border-bottom: 1px solid rgba(51,65,85,0.5); white-space: nowrap; }
+        tr:hover td { background: rgba(15,23,42,0.5); }
+        tr.total-row td { font-weight: 700; background: rgba(59,130,246,0.08); border-top: 2px solid var(--border); }
+        .text-right { text-align: right; }
+        .text-muted { color: var(--text-muted); }
+        .pct-pos { color: var(--positive); }
+        .pct-neg { color: var(--negative); }
+        .swatch { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:8px; vertical-align:middle; }
+
+        .section-divider { border-top: 1px solid var(--border); margin: 32px 0 28px; }
+        .qtr-section { margin-bottom: 24px; }
+        .qtr-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+        .section-title { font-size: 20px; font-weight: 700; }
+        .qtr-controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+
+        footer { text-align: center; padding: 20px; color: var(--text-muted); font-size: 12px; }
+        .note { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+        @media (max-width: 900px) {
+            .charts-grid { grid-template-columns: 1fr; }
+            header { flex-direction: column; }
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <div>
+            <h1>US iGaming &amp; Online Sports Betting — National Tracker</h1>
+            <p class="subtitle">Monthly state-level handle, GGR, promos &amp; tax &middot; Snapshot <span class="snapdate"></span></p>
+        </div>
+        <div class="vertical-toggle">
+            <button class="vt-btn osb active" id="vtOsb" onclick="setVertical('osb')">Online Sports Betting</button>
+            <button class="vt-btn osb" id="vtOsbDetailed" onclick="setVertical('osbdetailed')">OSB — Detailed</button>
+            <button class="vt-btn igaming" id="vtIgaming" onclick="setVertical('igaming')">iGaming</button>
+            <button class="vt-btn igaming" id="vtDetailed" onclick="setVertical('detailed')">iGaming — Detailed</button>
+            <button class="vt-btn osb" id="vtNyw" onclick="setVertical('nyweekly')">NY — Weekly</button>
+        </div>
+    </header>
+
+    <div id="standardView">
+    <div class="filters" style="margin-bottom:24px;">
+        <div class="filter-group">
+            <label>Metric</label>
+            <select id="metricFilter" onchange="setMetric(this.value)">
+                <option value="h">Handle</option>
+                <option value="r">GGR (Revenue)</option>
+                <option value="n">NGR (GGR − Promos)</option>
+                <option value="p">Promos</option>
+                <option value="t">Tax</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>View</label>
+            <button class="view-btn active" id="btnRaw" onclick="setView('raw')">$ Values</button>
+            <button class="view-btn" id="btnMom" onclick="setView('mom')">MoM %</button>
+            <button class="view-btn" id="btnYoy" onclick="setView('yoy')">YoY %</button>
+        </div>
+        <div class="filter-group">
+            <label>Window</label>
+            <select id="windowFilter" onchange="setWindow(this.value)">
+                <option value="all">Full history</option>
+                <option value="60">Last 5 years</option>
+                <option value="36">Last 3 years</option>
+                <option value="12">Last 12 months</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div class="controls">
+        <div class="controls-head">
+            <div class="controls-label">States <span id="stateCount" class="text-muted"></span></div>
+            <div class="controls-actions">
+                <button onclick="selectStates('all')">Select all</button>
+                <button onclick="selectStates('none')">Clear</button>
+                <button onclick="selectStates('top')">Top 6</button>
+            </div>
+        </div>
+        <div class="state-toggles" id="stateToggles"></div>
+        <div id="stateNote" class="note" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="charts-grid">
+        <div class="chart-card">
+            <div class="chart-title" id="aggTitle">National Aggregate</div>
+            <div class="chart-sub" id="aggSub"></div>
+            <div class="chart-box"><canvas id="aggChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-title" id="stateTitle">By State</div>
+            <div class="chart-sub" id="stateSub"></div>
+            <div class="chart-box"><canvas id="stateChart"></canvas></div>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <div class="table-header">
+            <h3 id="tableTitle">Latest Month by State</h3>
+            <span class="text-muted" id="tableAsOf"></span>
+        </div>
+        <div class="table-scroll">
+            <table>
+                <thead id="tableHead"></thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ===== QUARTERLY SECTION ===== -->
+    <div class="section-divider"></div>
+    <div class="qtr-section">
+        <div class="qtr-header">
+            <div>
+                <h2 class="section-title">Quarterly Performance</h2>
+                <p class="subtitle">Calendar-quarter totals with year-over-year comparison</p>
+            </div>
+            <div class="qtr-controls">
+                <div class="filter-group">
+                    <label>Scope</label>
+                    <select id="qtrScope" onchange="renderQuarterly()">
+                        <option value="agg">National aggregate</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Metric</label>
+                    <select id="qtrMetric" onchange="renderQuarterly()">
+                        <option value="h">Handle</option>
+                        <option value="r">GGR (Revenue)</option>
+                        <option value="n">NGR</option>
+                        <option value="p">Promos</option>
+                        <option value="t">Tax</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-title">Quarterly Trend</div>
+                <div class="chart-sub" id="qtrLineSub"></div>
+                <div class="chart-box"><canvas id="qtrLineChart"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">Year-over-Year Growth</div>
+                <div class="chart-sub">% change vs same quarter prior year</div>
+                <div class="chart-box"><canvas id="qtrBarChart"></canvas></div>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <div class="table-header"><h3 id="qtrTableTitle">Quarterly Totals</h3></div>
+            <div class="table-scroll">
+                <table>
+                    <thead id="qtrTableHead"></thead>
+                    <tbody id="qtrTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    </div><!-- /standardView -->
+
+    <div id="detailedView" style="display:none;">
+        <div class="filters" style="margin-bottom:16px;">
+            <div class="filter-group"><label>View</label>
+                <button class="view-btn active" id="detModeState" onclick="setDetMode('state')">By state</button>
+                <button class="view-btn" id="detModeCross" onclick="setDetMode('cross')">Operator across states</button>
+            </div>
+            <div class="filter-group" id="detStateRow"><label>State</label><div id="detStateBtns" style="display:flex;gap:4px;flex-wrap:wrap;"></div></div>
+            <div class="filter-group" id="detMetricRow"><label>Metric</label><div id="detMetricBtns" style="display:flex;gap:4px;"></div></div>
+            <div class="filter-group"><label>Show</label>
+                <button class="view-btn active" id="detVraw" onclick="setDetView('raw')">$ Values</button>
+                <button class="view-btn" id="detVmom" onclick="setDetView('mom')">MoM %</button>
+                <button class="view-btn" id="detVyoy" onclick="setDetView('yoy')">YoY %</button>
+            </div>
+            <div class="filter-group"><label>Window</label>
+                <select id="detWindow" onchange="setDetWindow(this.value)">
+                    <option value="all">Full history</option>
+                    <option value="24">Last 24 mo</option>
+                    <option value="12">Last 12 mo</option>
+                </select>
+            </div>
+            <div class="filter-group"><label>Snapshot month</label>
+                <select id="detMonth" onchange="setDetMonth(this.value)"></select>
+            </div>
+        </div>
+        <div class="kpi-grid" id="detKpiGrid"></div>
+        <div class="controls">
+            <div class="controls-head">
+                <div class="controls-label" id="detOpLabel">Operators <span id="detOpCount" class="text-muted"></span></div>
+                <div class="controls-actions"><button onclick="detSelect('all')">Select all</button><button onclick="detSelect('none')">Clear</button><button onclick="detSelect('top')">Top 8</button></div>
+            </div>
+            <div class="state-toggles" id="detOpToggles"></div>
+            <div id="detOpNote" class="note" style="margin-top:10px;"></div>
+        </div>
+        <div class="charts-grid">
+            <div class="chart-card"><div class="chart-title" id="detAggTitle">Total</div><div class="chart-sub" id="detAggSub"></div><div class="chart-box"><canvas id="detAggChart"></canvas></div></div>
+            <div class="chart-card"><div class="chart-title" id="detChartTitle">By operator</div><div class="chart-sub" id="detChartSub"></div><div class="chart-box"><canvas id="detChart"></canvas></div></div>
+        </div>
+        <div class="table-wrap">
+            <div class="table-header"><h3 id="detTableTitle">Operators</h3><span class="text-muted" id="detTableNote"></span></div>
+            <div class="table-scroll"><table><thead id="detTableHead"></thead><tbody id="detTableBody"></tbody></table></div>
+        </div>
+        <div class="section-divider"></div>
+        <div class="qtr-header"><div><h2 class="section-title">Quarterly Performance — by operator</h2><p class="subtitle" id="detQSub"></p></div></div>
+        <div class="charts-grid">
+            <div class="chart-card"><div class="chart-title" id="detQTrendTitle">Quarterly trend</div><div class="chart-sub" id="detQTrendSub"></div><div class="chart-box"><canvas id="detQTrend"></canvas></div></div>
+            <div class="chart-card"><div class="chart-title" id="detQYoYTitle">Year-over-Year growth</div><div class="chart-sub" id="detQYoYSub">like-for-like vs same quarter prior year</div><div class="chart-box"><canvas id="detQYoY"></canvas></div></div>
+        </div>
+        <div class="table-wrap">
+            <div class="table-header"><h3 id="detQTableTitle">Quarterly totals by operator</h3><span class="text-muted" id="detQTableNote"></span></div>
+            <div class="table-scroll"><table><thead id="detQTableHead"></thead><tbody id="detQTableBody"></tbody></table></div>
+        </div>
+        <div class="controls" style="margin-top:24px;">
+            <div class="controls-label">Coverage &amp; data sources</div>
+            <div id="detCoverage" style="margin-top:10px;"></div>
+        </div>
+    </div>
+
+    <div id="nywView" style="display:none;">
+        <div class="filters" style="margin-bottom:16px;">
+            <div class="filter-group"><label>Metric</label><div id="nwMetricBtns" style="display:flex;gap:4px;"></div></div>
+            <div class="filter-group"><label>Show</label>
+                <button class="view-btn active" id="nwVraw" onclick="setNwView('raw')">$ / value</button>
+                <button class="view-btn" id="nwVwow" onclick="setNwView('wow')">WoW %</button>
+                <button class="view-btn" id="nwVyoy" onclick="setNwView('yoy')">YoY %</button>
+            </div>
+            <div class="filter-group"><label>Window</label>
+                <select id="nwWindow" onchange="setNwWindow(this.value)">
+                    <option value="52">Last 52 wks</option>
+                    <option value="26">Last 26 wks</option>
+                    <option value="13">Last 13 wks</option>
+                    <option value="104">Last 104 wks</option>
+                    <option value="all">All history</option>
+                </select>
+            </div>
+            <div class="filter-group"><label>Snapshot week</label><select id="nwWeek" onchange="setNwWeek(this.value)"></select></div>
+        </div>
+        <div class="kpi-grid" id="nwKpiGrid"></div>
+        <div class="controls">
+            <div class="controls-head">
+                <div class="controls-label">Operators <span id="nwOpCount" class="text-muted"></span></div>
+                <div class="controls-actions"><button onclick="nwSelect('all')">Select all</button><button onclick="nwSelect('none')">Clear</button><button onclick="nwSelect('top')">Top 5</button></div>
+            </div>
+            <div class="state-toggles" id="nwOpToggles"></div>
+            <div id="nwNote" class="note" style="margin-top:10px;"></div>
+        </div>
+        <div class="charts-grid">
+            <div class="chart-card"><div class="chart-title" id="nwAggTitle">Total</div><div class="chart-sub" id="nwAggSub"></div><div class="chart-box"><canvas id="nwAggChart"></canvas></div></div>
+            <div class="chart-card"><div class="chart-title" id="nwOpChartTitle">By operator</div><div class="chart-sub" id="nwOpChartSub"></div><div class="chart-box"><canvas id="nwOpChart"></canvas></div></div>
+        </div>
+        <div class="table-wrap">
+            <div class="table-header"><h3 id="nwTableTitle">Operators</h3><span class="text-muted" id="nwTableNote"></span></div>
+            <div class="table-scroll"><table><thead id="nwTableHead"></thead><tbody id="nwTableBody"></tbody></table></div>
+        </div>
+        <div class="section-divider"></div>
+        <div class="qtr-header"><div><h2 class="section-title">Quarterly Performance — by operator</h2><p class="subtitle" id="nwQSub"></p></div></div>
+        <div class="charts-grid">
+            <div class="chart-card"><div class="chart-title" id="nwQTrendTitle">Quarterly trend</div><div class="chart-sub" id="nwQTrendSub"></div><div class="chart-box"><canvas id="nwQTrend"></canvas></div></div>
+            <div class="chart-card"><div class="chart-title" id="nwQYoYTitle">Year-over-Year growth</div><div class="chart-sub" id="nwQYoYSub">like-for-like vs same weeks prior year</div><div class="chart-box"><canvas id="nwQYoY"></canvas></div></div>
+        </div>
+        <div class="table-wrap">
+            <div class="table-header"><h3 id="nwQTableTitle">Quarterly totals by operator</h3><span class="text-muted" id="nwQTableNote"></span></div>
+            <div class="table-scroll"><table><thead id="nwQTableHead"></thead><tbody id="nwQTableBody"></tbody></table></div>
+        </div>
+    </div>
+
+    <footer>
+        US iGaming &amp; OSB National Tracker &middot; Built from state regulator monthly reports &middot; Handle not disclosed for NJ &amp; MI iGaming (GGR-only markets)
+    </footer>
+</div>
+
+<script data-tracker-loader>
+/* Tracker data loader (generated by tracker-to-github-repo).
+   All data lives in data/*.json. index.html fetches it (serve the folder over http);
+   the single-file build embeds it as window.__TRACKER_EMBED__. The page's own code sits in the
+   text/plain script blocks marked data-tracker-app, and runs once the data is ready. */
+(function () {
+  var FILES = ["RAW", "DET_IG", "DET_OSB", "DET_COVERAGE_IG", "DET_COVERAGE_OSB", "DETAILED_NYW", "meta"];
+  function getData() {
+    if (window.__TRACKER_EMBED__) return Promise.resolve(window.__TRACKER_EMBED__);
+    return Promise.all(FILES.map(function (n) {
+      return fetch("data/" + n + ".json", { cache: "no-cache" }).then(function (r) {
+        if (!r.ok) throw new Error("data/" + n + ".json returned HTTP " + r.status);
+        return r.json();
+      });
+    })).then(function (a) { var d = {}; FILES.forEach(function (n, i) { d[n] = a[i]; }); return d; });
+  }
+  function fillSnapshot(meta) {
+    if (!meta || !meta.snapshot_label) return;
+    var els = document.querySelectorAll(".snapdate");
+    for (var i = 0; i < els.length; i++) els[i].textContent = meta.snapshot_label;
+  }
+  function runApp() {
+    var blocks = document.querySelectorAll("script[data-tracker-app]");
+    var dAdd = document.addEventListener, wAdd = window.addEventListener, before = window.onload;
+    function shim(orig, target) {
+      return function (type, fn, opt) {
+        if (type === "DOMContentLoaded" || (type === "load" && document.readyState === "complete")) {
+          setTimeout(function () { fn.call(target, { type: type, target: target }); }, 0);
+          return;
+        }
+        return orig.call(this, type, fn, opt);
+      };
+    }
+    document.addEventListener = shim(dAdd, document);
+    window.addEventListener = shim(wAdd, window);
+    try {
+      for (var i = 0; i < blocks.length; i++) {
+        var s = document.createElement("script");
+        s.text = blocks[i].textContent;
+        document.body.appendChild(s);
+      }
+    } finally {
+      document.addEventListener = dAdd;
+      window.addEventListener = wAdd;
+    }
+    if (typeof window.onload === "function" && window.onload !== before && document.readyState === "complete") {
+      setTimeout(function () { window.onload({ type: "load" }); }, 0);
+    }
+  }
+  function showError(e) {
+    var box = document.createElement("div");
+    box.setAttribute("style", "margin:16px;padding:12px 16px;border:1px solid #d97706;border-radius:8px;background:#fffbeb;color:#92400e;font:14px sans-serif");
+    box.innerHTML = "<b>Could not load the tracker data.</b> " + String(e && e.message || e) +
+      "<br>Opening index.html straight from disk blocks the data files. Run <code>python -m http.server</code> in this folder " +
+      "and open http://localhost:8000, or open the single-file build instead.";
+    document.body.insertBefore(box, document.body.firstChild);
+  }
+  function start() {
+    getData().then(function (d) { window.__TRACKER_DATA__ = d; fillSnapshot(d.meta); runApp(); }).catch(showError);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
+})();
+</script>
+<script type="text/plain" data-tracker-app>
+const RAW = __TRACKER_DATA__["RAW"];
+const METRICS = { h:'Handle', r:'GGR', n:'NGR', p:'Promos', t:'Tax' };
+const PALETTE = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16','#f97316','#14b8a6','#a855f7','#eab308','#0ea5e9','#10b981','#f43f5e','#6366f1','#d946ef','#22d3ee','#fbbf24','#4ade80','#fb7185','#a78bfa','#34d399','#facc15','#60a5fa','#f87171','#2dd4bf','#c084fc','#fca5a5','#93c5fd','#bef264','#fdba74','#67e8f9','#5eead4','#fda4af'];
+
+let S = { vertical:'osb', metric:'h', view:'raw', window:'all', active:new Set(), sortCol:'val', sortDir:-1, colorMap:{} };
+let aggChart, stateChart, qtrLineChart, qtrBarChart;
+
+// ---------- helpers ----------
+function statesOf(v){ return Object.keys(RAW[v]).sort(); }
+function allMonths(v){
+    const set=new Set();
+    for(const st of statesOf(v)) for(const r of RAW[v][st]) set.add(r.d);
+    return [...set].sort();
+}
+function valOf(rec, m){ const x=rec[m]; return (x===null||x===undefined)?null:x; }
+function hasMetric(v, st, m){ return RAW[v][st].some(r=>valOf(r,m)!=null); }
+// returns Map d-> value for a state & metric
+function stateMap(v, st, m){
+    const map={};
+    for(const r of RAW[v][st]) map[r.d]=valOf(r,m);
+    return map;
+}
+// aggregate across selected states (or all if none arg) -> Map d->sum (null-aware)
+function aggMap(v, m, states){
+    const out={};
+    for(const st of states){
+        for(const r of RAW[v][st]){
+            const val=valOf(r,m);
+            if(val===null) continue;
+            out[r.d]=(out[r.d]||0)+val;
+        }
+    }
+    return out;
+}
+function applyView(months, map, view){
+    return months.map(d=>{
+        const cur=map[d];
+        if(cur===null||cur===undefined) return null;
+        if(view==='raw') return cur;
+        let prevKey;
+        if(view==='mom'){ const dt=new Date(d+'-01'); dt.setMonth(dt.getMonth()-1); prevKey=fmtKey(dt); }
+        else { const dt=new Date(d+'-01'); dt.setFullYear(dt.getFullYear()-1); prevKey=fmtKey(dt); }
+        const prev=map[prevKey];
+        if(prev===null||prev===undefined||prev===0) return null;
+        return (cur-prev)/prev*100;
+    });
+}
+function fmtKey(dt){ return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0'); }
+function windowMonths(months){
+    if(S.window==='all') return months;
+    const n=parseInt(S.window); return months.slice(-n);
+}
+function fmtMoney(v){
+    if(v===null||v===undefined) return '—';
+    const a=Math.abs(v);
+    if(a>=1e9) return '$'+(v/1e9).toFixed(2)+'B';
+    if(a>=1e6) return '$'+(v/1e6).toFixed(1)+'M';
+    if(a>=1e3) return '$'+(v/1e3).toFixed(0)+'K';
+    return '$'+v.toFixed(0);
+}
+function fmtPct(v){ if(v===null||v===undefined) return '—'; return (v>=0?'+':'')+v.toFixed(1)+'%'; }
+function color(st){ return S.colorMap[st]||'#888'; }
+
+// ---------- init ----------
+function init(){
+    assignColors();
+    renderStateToggles();
+    selectStates('top', true);
+    setVertical('osb', true);
+}
+function assignColors(){
+    // stable colors per state within a vertical
+    S.colorMap={};
+    statesOf(S.vertical).forEach((st,i)=>{ S.colorMap[st]=PALETTE[i%PALETTE.length]; });
+}
+function setVertical(v, skip){
+    document.getElementById('vtOsb').classList.toggle('active', v==='osb');
+    document.getElementById('vtIgaming').classList.toggle('active', v==='igaming');
+    document.getElementById('vtDetailed').classList.toggle('active', v==='detailed');
+    document.getElementById('vtOsbDetailed').classList.toggle('active', v==='osbdetailed');
+    document.getElementById('vtNyw').classList.toggle('active', v==='nyweekly');
+    const isDet = (v==='detailed'||v==='osbdetailed');
+    const isNyw = (v==='nyweekly');
+    document.getElementById('standardView').style.display = (isDet||isNyw)?'none':'';
+    document.getElementById('detailedView').style.display = isDet?'':'none';
+    document.getElementById('nywView').style.display = isNyw?'':'none';
+    if(isNyw){ document.documentElement.style.setProperty('--accent','#f59e0b'); renderNyw(); return; }
+    if(isDet){
+        const osb=(v==='osbdetailed');
+        DETAILED = osb?DET_OSB:DET_IG;
+        DET_COVERAGE = osb?DET_COVERAGE_OSB:DET_COVERAGE_IG;
+        detKind = osb?'osb':'ig';
+        _cb={}; Sd.mode='state'; Sd.window='all'; Sd.month=null;
+        Sd.state=Object.keys(DETAILED.states)[0];
+        Sd.metric = osb?(metricOK(Sd.state,'h')?'h':'r'):'r';
+        resetActive();
+        document.documentElement.style.setProperty('--accent', osb?'#3b82f6':'#8b5cf6');
+        renderDetailed(); return;
+    }
+    S.vertical=v;
+    document.documentElement.style.setProperty('--accent', v==='igaming'?'#8b5cf6':'#3b82f6');
+    assignColors();
+    if(S.metric==='n'){ S.active=new Set(availStates()); renderStateToggles(); }
+    else { renderStateToggles(); selectStates('top', true); }
+    refresh();
+    renderQuarterly();
+}
+function setMetric(m){
+    S.metric=m; document.getElementById('qtrMetric').value=m;
+    if(m==='n'){
+        S.active=new Set(availStates());           // only promos-reporting states
+        S.window='all';                             // show their full history
+        const wf=document.getElementById('windowFilter'); if(wf) wf.value='all';
+    }
+    renderStateToggles(); refresh(); renderQuarterly();
+}
+function setView(view){
+    S.view=view;
+    document.getElementById('btnRaw').classList.toggle('active', view==='raw');
+    document.getElementById('btnMom').classList.toggle('active', view==='mom');
+    document.getElementById('btnYoy').classList.toggle('active', view==='yoy');
+    refresh();
+}
+function setWindow(w){ S.window=w; refresh(); }
+
+// ---------- state toggles ----------
+// states available to plot for the current metric (NGR = promos-reporting states only)
+function availStates(){ const v=S.vertical; const all=statesOf(v);
+    return S.metric==='n' ? all.filter(st=>RAW[v][st].some(r=>r.n!=null)) : all; }
+function renderStateToggles(){
+    const box=document.getElementById('stateToggles');
+    box.innerHTML='';
+    const avail=availStates();
+    for(const st of avail){
+        const b=document.createElement('button');
+        b.className='st-btn'+(S.active.has(st)?' active':'');
+        b.style.color=S.active.has(st)?color(st):'';
+        b.innerHTML='<span class="dot" style="background:'+color(st)+'"></span>'+st;
+        b.onclick=()=>{ if(S.active.has(st))S.active.delete(st); else S.active.add(st); renderStateToggles(); refresh(); };
+        box.appendChild(b);
+    }
+    document.getElementById('stateCount').textContent='('+S.active.size+' of '+avail.length+' selected)';
+    const note=document.getElementById('stateNote');
+    if(S.metric==='n'){
+        note.innerHTML='<strong style="color:var(--text-secondary)">NGR shown for the '+avail.length+' '+(S.vertical==='osb'?'OSB':'iGaming')+' states with promo data:</strong> '+avail.join(', ');
+    } else { note.textContent=''; }
+}
+function selectStates(mode, skip){
+    const all=availStates();
+    if(mode==='all'){ S.active=new Set(all); }
+    else if(mode==='none'){ S.active=new Set(); }
+    else if(mode==='top'){
+        const months=allMonths(S.vertical); const last=months[months.length-1];
+        const ranked=all.map(st=>{ const mp=stateMap(S.vertical,st,'r'); return [st, mp[last]||0]; })
+            .sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]);
+        S.active=new Set(ranked);
+    }
+    renderStateToggles();
+    if(!skip) refresh();
+}
+
+// ---------- main refresh ----------
+function refresh(){
+    try{ renderKPIs(); }catch(e){ console.error('KPI',e); }
+    try{ renderAggChart(); }catch(e){ console.error('agg',e); }
+    try{ renderStateChart(); }catch(e){ console.error('state',e); }
+    try{ renderTable(); }catch(e){ console.error('table',e); }
+}
+
+// ----- same-store helpers: a state counts in an aggregate change only if it REPORTED
+// (GGR present and > 0) in BOTH the current and comparison period. States that have not
+// yet reported a month are excluded from that month's YoY / MoM / QoQ on both sides. -----
+function prevMonthKey(d){ const dt=new Date(d+'-01'); dt.setMonth(dt.getMonth()-1); return fmtKey(dt); }
+function buildSV(v,m){ const o={}; for(const st of statesOf(v)) o[st]=stateMap(v,st,m); return o; }
+function buildGGR(v){ const o={}; for(const st of statesOf(v)) o[st]=stateMap(v,st,'r'); return o; }
+function reported(ggr,st,d){ const x=ggr[st]?ggr[st][d]:undefined; return x!=null && x>0; }
+function ssChange(sv, ggr, ck, pk){
+    let cur=0, prev=0, have=false;
+    for(const st in sv){
+        if(!reported(ggr,st,ck) || !reported(ggr,st,pk)) continue;
+        const c=sv[st][ck], p=sv[st][pk];
+        if(c!=null && p!=null){ cur+=c; prev+=p; have=true; }
+    }
+    return (have && prev!==0) ? (cur-prev)/prev*100 : null;
+}
+function ssPairs(sv, ggr, pairs){
+    let cur=0, prev=0, have=false;
+    for(const [ck,pk] of pairs){
+        for(const st in sv){
+            if(!reported(ggr,st,ck) || !reported(ggr,st,pk)) continue;
+            const c=sv[st][ck], p=sv[st][pk];
+            if(c!=null && p!=null){ cur+=c; prev+=p; have=true; }
+        }
+    }
+    return (have && prev!==0) ? (cur-prev)/prev*100 : null;
+}
+function renderKPIs(){
+    const v=S.vertical, all=statesOf(v);
+    const months=allMonths(v); const last=months[months.length-1];
+    const prevM=prevMonthKey(last), prevY=prevYearMonth(last);
+    const ggr=buildGGR(v);
+    const grid=document.getElementById('kpiGrid'); grid.innerHTML='';
+    const order=[['h','Handle'],['r','GGR'],['n','NGR'],['p','Promos'],['t','Tax']];
+    for(const [mk,label] of order){
+        const sv=buildSV(v,mk);
+        const cur=aggMap(v,mk,all)[last];
+        const mom=ssChange(sv,ggr,last,prevM);
+        const yoy=ssChange(sv,ggr,last,prevY);
+        const card=document.createElement('div'); card.className='kpi-card';
+        card.innerHTML='<div class="kpi-label">'+label+' &middot; '+fmtMonthLabel(last)+'</div>'+
+            '<div class="kpi-value">'+fmtMoney(cur)+'</div>'+
+            '<div class="kpi-change '+(yoy>=0?'positive':'negative')+'">'+fmtPct(yoy)+' YoY</div>'+
+            '<div class="kpi-sub">'+fmtPct(mom)+' MoM &middot; same-store</div>';
+        grid.appendChild(card);
+    }
+    // states count card
+    const card=document.createElement('div'); card.className='kpi-card';
+    card.innerHTML='<div class="kpi-label">Reporting States</div>'+
+        '<div class="kpi-value">'+all.length+'</div>'+
+        '<div class="kpi-sub">'+(v==='osb'?'Online sports betting':'iGaming / online casino')+'</div>';
+    grid.appendChild(card);
+}
+function fmtMonthLabel(d){ const dt=new Date(d+'-01'); return dt.toLocaleDateString('en-US',{month:'short',year:'numeric'}); }
+
+function yAxisCfg(){
+    if(S.view==='raw') return { ticks:{ callback:v=>fmtMoney(v), color:'#94a3b8' }, grid:{color:'rgba(51,65,85,0.4)'} };
+    return { ticks:{ callback:v=>v.toFixed(0)+'%', color:'#94a3b8' }, grid:{color:'rgba(51,65,85,0.4)'} };
+}
+function baseChartOpts(){
+    return {
+        responsive:true, maintainAspectRatio:false,
+        interaction:{ mode:'index', intersect:false },
+        plugins:{
+            legend:{ labels:{ color:'#94a3b8', boxWidth:12, font:{size:11} } },
+            tooltip:{ callbacks:{ label:ctx=>{ const v=ctx.parsed.y; return ctx.dataset.label+': '+(S.view==='raw'?fmtMoney(v):(v==null?'—':fmtPct(v))); } } }
+        },
+        scales:{
+            x:{ type:'time', time:{ unit:'year' }, ticks:{ color:'#94a3b8' }, grid:{color:'rgba(51,65,85,0.4)'} },
+            y:yAxisCfg()
+        }
+    };
+}
+function viewLabel(){ return S.view==='raw'?METRICS[S.metric]+' ($)':(S.view==='mom'?METRICS[S.metric]+' MoM %':METRICS[S.metric]+' YoY %'); }
+
+function ngrNote(){
+    if(S.metric!=='n') return '';
+    const v=S.vertical, all=statesOf(v);
+    let c=0; for(const st of all){ if(RAW[v][st].some(r=>r.n!=null)) c++; }
+    return c<all.length ? ' · NGR uses promos-reporting states only ('+c+' of '+all.length+')' : '';
+}
+function renderAggChart(){
+    const v=S.vertical, all=statesOf(v);
+    let months=windowMonths(allMonths(v));
+    let data;
+    if(S.view==='raw'){
+        const am=aggMap(v,S.metric,all);
+        data=months.map(d=>am[d]==null?null:am[d]);
+    } else {
+        const sv=buildSV(v,S.metric), ggr=buildGGR(v);
+        data=months.map(d=>ssChange(sv,ggr,d, S.view==='mom'?prevMonthKey(d):prevYearMonth(d)));
+    }
+    const pts=months.map((d,i)=>({x:d+'-01', y:data[i]}));
+    document.getElementById('aggTitle').textContent='National Aggregate — '+METRICS[S.metric];
+    document.getElementById('aggSub').textContent=(S.view==='raw'?'Sum across all '+all.length+' '+(v==='osb'?'OSB':'iGaming')+' states':viewLabel()+' · same-store (states reporting both periods)')+(S.metric==='h'&&v==='igaming'?' · excl. NJ & MI (handle not reported)':'')+ngrNote();
+    if(aggChart) aggChart.destroy();
+    aggChart=new Chart(document.getElementById('aggChart'),{
+        type:'line',
+        data:{ datasets:[{ label:'All states', data:pts, borderColor:v==='igaming'?'#8b5cf6':'#3b82f6', backgroundColor:(v==='igaming'?'rgba(139,92,246,0.15)':'rgba(59,130,246,0.15)'), fill:true, tension:0.25, pointRadius:0, borderWidth:2 }] },
+        options:baseChartOpts()
+    });
+}
+function renderStateChart(){
+    const v=S.vertical;
+    let months=windowMonths(allMonths(v));
+    const ds=[];
+    for(const st of statesOf(v)){
+        if(!S.active.has(st)) continue;
+        const mp=stateMap(v,st,S.metric);
+        const data=applyView(months, mp, S.view);
+        const pts=months.map((d,i)=>({x:d+'-01', y:data[i]}));
+        ds.push({ label:st, data:pts, borderColor:color(st), backgroundColor:color(st), fill:false, tension:0.25, pointRadius:0, borderWidth:2, spanGaps:true });
+    }
+    document.getElementById('stateTitle').textContent='By State — '+METRICS[S.metric];
+    document.getElementById('stateSub').textContent=ds.length?viewLabel()+' · '+ds.length+' state'+(ds.length>1?'s':'')+' shown':'Select states below to plot';
+    if(stateChart) stateChart.destroy();
+    stateChart=new Chart(document.getElementById('stateChart'),{ type:'line', data:{datasets:ds}, options:baseChartOpts() });
+}
+
+// ---------- table: latest snapshot by state ----------
+function renderTable(){
+    const v=S.vertical, all=statesOf(v);
+    const months=allMonths(v); const last=months[months.length-1];
+    const prevM=prevMonthKey(last), prevY=prevYearMonth(last);
+    const m=S.metric; const ggr=buildGGR(v);
+    const rows=all.map(st=>{
+        const mp=stateMap(v,st,m);
+        const repNow=reported(ggr,st,last), pmOk=reported(ggr,st,prevM), pyOk=reported(ggr,st,prevY);
+        const cur=(repNow && mp[last]!=null)?mp[last]:null;
+        const pm=mp[prevM], py=mp[prevY];
+        return { st, cur, nr:!repNow, availM:hasMetric(v,st,m),
+            mom:(repNow&&pmOk&&cur!=null&&pm!=null&&pm!==0)?((cur-pm)/pm*100):null,
+            yoy:(repNow&&pyOk&&cur!=null&&py!=null&&py!==0)?((cur-py)/py*100):null };
+    });
+    const totalCur=rows.reduce((a,r)=>a+(r.cur||0),0);
+    rows.forEach(r=>{ r.share=(r.cur!=null&&totalCur)?(r.cur/totalCur*100):null; });
+    // sort
+    rows.sort((a,b)=>{
+        let x=a[S.sortCol], y=b[S.sortCol];
+        if(S.sortCol==='st'){ return S.sortDir*a.st.localeCompare(b.st); }
+        x=(x==null?-Infinity:x); y=(y==null?-Infinity:y);
+        return S.sortDir*(x-y);
+    });
+    document.getElementById('tableTitle').textContent=METRICS[m]+' by State — '+fmtMonthLabel(last);
+    document.getElementById('tableAsOf').textContent='as of '+fmtMonthLabel(last)+' · n.r. = not yet reported · % = same-store'+ngrNote();
+    const cols=[['st','State'],['cur',METRICS[m]],['mom','MoM %'],['yoy','YoY %'],['share','Share']];
+    const sortMap={val:'cur'};
+    document.getElementById('tableHead').innerHTML='<tr>'+cols.map(c=>{
+        const arrow=S.sortCol===c[0]?(S.sortDir<0?'▼':'▲'):'';
+        const cls=(c[0]==='st'?'':'text-right')+(S.sortCol===c[0]?' sorted':'');
+        return '<th class="'+cls+'" onclick="sortBy(\''+c[0]+'\')">'+c[1]+' <span class="sort-arrow">'+arrow+'</span></th>';
+    }).join('')+'</tr>';
+    let body=rows.map(r=>{
+        const curCell=r.nr?'<span class="text-muted">n.r.</span>':(!r.availM?'<span class="text-muted">not avail</span>':fmtMoney(r.cur));
+        return '<tr'+((r.nr||!r.availM)?' style="opacity:0.55"':'')+'><td><span class="swatch" style="background:'+color(r.st)+'"></span>'+r.st+'</td>'+
+            '<td class="text-right">'+curCell+'</td>'+
+            '<td class="text-right '+pctCls(r.mom)+'">'+fmtPct(r.mom)+'</td>'+
+            '<td class="text-right '+pctCls(r.yoy)+'">'+fmtPct(r.yoy)+'</td>'+
+            '<td class="text-right text-muted">'+(r.share==null?'—':r.share.toFixed(1)+'%')+'</td></tr>';
+    }).join('');
+    // total (same-store % across states reporting both periods)
+    const sv=buildSV(v,m);
+    const tmom=ssChange(sv,ggr,last,prevM), tyoy=ssChange(sv,ggr,last,prevY);
+    body+='<tr class="total-row"><td>Total ('+all.length+' states)</td>'+
+        '<td class="text-right">'+fmtMoney(totalCur)+'</td>'+
+        '<td class="text-right '+pctCls(tmom)+'">'+fmtPct(tmom)+'</td>'+
+        '<td class="text-right '+pctCls(tyoy)+'">'+fmtPct(tyoy)+'</td>'+
+        '<td class="text-right">100%</td></tr>';
+    document.getElementById('tableBody').innerHTML=body;
+}
+function pctCls(v){ if(v==null) return ''; return v>=0?'pct-pos':'pct-neg'; }
+function sortBy(col){ if(S.sortCol===col) S.sortDir*=-1; else { S.sortCol=col; S.sortDir=(col==='st'?1:-1); } renderTable(); }
+
+// ---------- quarterly ----------
+function getQtr(d){ const dt=new Date(d+'-01'); return dt.getFullYear()+'-Q'+(Math.floor(dt.getMonth()/3)+1); }
+function prevYearMonth(d){ const dt=new Date(d+'-01'); dt.setFullYear(dt.getFullYear()-1); return fmtKey(dt); }
+// Like-for-like YoY: only count months in the quarter that have a prior-year counterpart,
+// and compare against those same prior-year months. A partial current quarter (e.g. 2 of 3
+// months) is therefore compared only against the same 2 months a year earlier.
+function qtrYoY(sv, ggr, qm, k){
+    const months=qm[k]||[];
+    return ssPairs(sv, ggr, months.map(d=>[d, prevYearMonth(d)]));
+}
+// Like-for-like QoQ: a partial current quarter is compared only against the same number of
+// leading months in the prior quarter.
+function qtrQoQ(sv, ggr, qm, keys, idx){
+    if(idx===0) return null;
+    const cm=qm[keys[idx]], pm=qm[keys[idx-1]]; const n=cm.length;
+    if(pm.length<n) return null;
+    return ssPairs(sv, ggr, cm.map((d,i)=>[d, pm[i]]));
+}
+function renderQuarterly(){
+    const v=S.vertical, m=document.getElementById('qtrMetric').value;
+    const all=statesOf(v);
+    const am=aggMap(v,m,all);              // d -> aggregate sum (for period totals / line)
+    const sv=buildSV(v,m), ggr=buildGGR(v); // for same-store comparisons
+    const qm={}, q={};                      // qkey -> [months] ; qkey -> total
+    for(const d in am){ const k=getQtr(d); (qm[k]=qm[k]||[]).push(d); q[k]=(q[k]||0)+am[d]; }
+    Object.values(qm).forEach(a=>a.sort());
+    let keys=Object.keys(q).sort();
+    if(!keys.length) return;
+    const lastKey=keys[keys.length-1];
+    const partialLast=(qm[lastKey]||[]).length<3;
+    const partialNote=partialLast?' · '+lastKey+' partial ('+qm[lastKey].length+' of 3 mo) — compared like-for-like':'';
+    document.getElementById('qtrLineSub').textContent=METRICS[m]+' · calendar-quarter totals'+partialNote+(m==='h'&&v==='igaming'?' · excl. NJ & MI':'');
+    // line chart (actual period totals)
+    const linePts=keys.map(k=>({x:qtrToDate(k), y:q[k]}));
+    if(qtrLineChart) qtrLineChart.destroy();
+    qtrLineChart=new Chart(document.getElementById('qtrLineChart'),{
+        type:'line',
+        data:{ datasets:[{ label:METRICS[m], data:linePts, borderColor:v==='igaming'?'#8b5cf6':'#3b82f6', backgroundColor:(v==='igaming'?'rgba(139,92,246,0.15)':'rgba(59,130,246,0.15)'), fill:true, tension:0.25, pointRadius:2, borderWidth:2 }] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>{const k=keys[c.dataIndex]; const part=qm[k].length<3?' (partial, '+qm[k].length+'mo)':''; return METRICS[m]+': '+fmtMoney(c.parsed.y)+part;}}}},
+            scales:{ x:{type:'time',time:{unit:'year'},ticks:{color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}}, y:{ticks:{callback:val=>fmtMoney(val),color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}} } }
+    });
+    // yoy bar (like-for-like)
+    const yoy=keys.map(k=>qtrYoY(sv,ggr,qm,k));
+    const barLabels=keys.map(k=>qm[k].length<3?k+'*':k);
+    if(qtrBarChart) qtrBarChart.destroy();
+    qtrBarChart=new Chart(document.getElementById('qtrBarChart'),{
+        type:'bar',
+        data:{ labels:barLabels, datasets:[{ label:'YoY %', data:yoy, backgroundColor:yoy.map(x=>x==null?'#475569':(x>=0?'#22c55e':'#ef4444')) }] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{
+            title:c=>{const k=keys[c[0].dataIndex]; return k+(qm[k].length<3?' (partial '+qm[k].length+'mo, like-for-like)':'');},
+            label:c=>'YoY: '+(c.parsed.y==null?'—':fmtPct(c.parsed.y))}}},
+            scales:{ x:{ticks:{color:'#94a3b8',maxRotation:60,minRotation:45,autoSkip:true,maxTicksLimit:16},grid:{display:false}}, y:{ticks:{callback:val=>val.toFixed(0)+'%',color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}} } }
+    });
+    // table: rows per quarter recent first
+    document.getElementById('qtrTableTitle').innerHTML=METRICS[m]+' — Quarterly Totals'+(partialLast?' <span class="text-muted" style="font-weight:400;font-size:12px;">(* partial quarter — QoQ &amp; YoY compared like-for-like vs same months)</span>':'');
+    document.getElementById('qtrTableHead').innerHTML='<tr><th>Quarter</th><th class="text-right">'+METRICS[m]+'</th><th class="text-right">QoQ %</th><th class="text-right">YoY %</th></tr>';
+    const rev=[...keys].reverse();
+    document.getElementById('qtrTableBody').innerHTML=rev.map(k=>{
+        const idx=keys.indexOf(k);
+        const isPartial=qm[k].length<3;
+        const qoq=qtrQoQ(sv,ggr,qm,keys,idx);
+        const yy=qtrYoY(sv,ggr,qm,k);
+        const label=k+(isPartial?' <span class="text-muted">*</span>':'');
+        return '<tr><td>'+label+'</td><td class="text-right">'+fmtMoney(q[k])+'</td>'+
+            '<td class="text-right '+pctCls(qoq)+'">'+fmtPct(qoq)+'</td>'+
+            '<td class="text-right '+pctCls(yy)+'">'+fmtPct(yy)+'</td></tr>';
+    }).join('');
+}
+function qtrToDate(k){ const [y,q]=k.split('-Q'); const mo=(parseInt(q)-1)*3; return new Date(parseInt(y),mo,1).toISOString().slice(0,10); }
+
+// ===================== iGaming – Detailed (operator-level) =====================
+const DET_IG = __TRACKER_DATA__["DET_IG"];
+const DET_OSB = __TRACKER_DATA__["DET_OSB"];
+let DETAILED = DET_IG;
+let detKind = 'ig';
+const DET_METRICS = { h:'Handle', r:'GGR', n:'NGR', p:'Promos', t:'Tax' };
+let Sd = { state:'Michigan', metric:'r', mode:'state', view:'raw', window:'all', month:null, active:new Set(), colors:{} };
+let detAggChart, detChart, detQTrend, detQYoY, _cb={};
+
+const DET_COVERAGE_IG = __TRACKER_DATA__["DET_COVERAGE_IG"];
+const DET_COVERAGE_OSB = __TRACKER_DATA__["DET_COVERAGE_OSB"];
+let DET_COVERAGE = DET_COVERAGE_IG;
+
+function brandOf(op){
+  const s=op.toLowerCase();
+  if(s.includes('fanduel')) return 'FanDuel';
+  if(s.includes('draftkings')) return 'DraftKings';
+  if(s.includes('betmgm')||s.includes('borgata')||s.includes('partypoker')||s.includes('stardust')||s.includes('pala')||s.includes('wheel of fortune')) return 'BetMGM / Borgata';
+  if(s.includes('betrivers')||s.includes('rivers')||s.includes('rush street')) return 'BetRivers';
+  if(s.includes('golden nugget')) return 'Golden Nugget';
+  if(s.includes('caesars')||s.includes('harrah')||s.includes('wsop')||s.includes('tropicana')||s.includes('betinia')||s.includes('ember')||s.includes('william hill')||s.includes('horseshoe')) return 'Caesars';
+  if(s.includes('bally')||s.includes('monopoly')) return "Bally's";
+  if(s.includes('fanatics')) return 'Fanatics';
+  if(s.includes('hard rock')) return 'Hard Rock';
+  if(s.includes('bet365')) return 'bet365';
+  if(s.includes('thescore')) return 'theScore';
+  if(s.includes('pokerstars')) return 'PokerStars';
+  if(s.includes('hollywood')||s.includes('penn')||s.includes('espn')||s.includes('barstool')) return 'ESPN BET / Penn';
+  if(s.includes('parx')) return 'Parx';
+  if(s.includes('mohegan')) return 'Mohegan';
+  if(s.includes('foxwoods')) return 'Foxwoods';
+  if(s.includes('resorts world')) return 'Resorts World';
+  if(s.includes('playstar')) return 'PlayStar';
+  if(s.includes('jackpocket')) return 'Jackpocket';
+  if(s.includes('resorts')) return 'Resorts';
+  if(s.includes('ocean')) return 'Ocean';
+  if(s.includes('mount airy')) return 'Mount Airy';
+  if(s.includes('presque')) return 'Presque Isle';
+  if(s.includes('wind creek')) return 'Wind Creek';
+  if(s.includes('live!')) return 'Live!';
+  return op;
+}
+// states (within current vertical) that report a given metric — used to exclude
+// states with no data for the chosen field and to flag which are included
+function crossStatesFor(m){ return detStates().filter(st=>metricOK(st,m)); }
+function crossBrandData(m){
+  m=m||Sd.metric;
+  if(_cb[m]) return _cb[m];
+  const out={};
+  for(const st of crossStatesFor(m)) for(const op in DETAILED.states[st]) for(const mo in DETAILED.states[st][op]){
+    const v=opVal(st,op,mo,m); if(v==null) continue;
+    const b=brandOf(op);
+    (out[b]=out[b]||{}); (out[b][st]=out[b][st]||{}); out[b][st][mo]=(out[b][st][mo]||0)+v;
+  }
+  _cb[m]=out; return out;
+}
+function detStates(){ return Object.keys(DETAILED.states); }
+function detAvail(state){ return DETAILED.meta[state].metrics; }
+function metricOK(state,m){ if(m==='n') return detAvail(state).includes('r')&&detAvail(state).includes('p'); return detAvail(state).includes(m); }
+function opVal(state,op,mo,m){ const r=DETAILED.states[state][op][mo]; if(!r) return null; if(m==='n'){ if(r.r==null) return null; return r.r-(r.p||0); } return r[m]; }
+function stateMonths(state){ return DETAILED.months.filter(mo=>Object.keys(DETAILED.states[state]).some(op=>{const r=DETAILED.states[state][op][mo];return r&&r.r!=null;})); }
+function detEntities(){ return Sd.mode==='cross'? Object.keys(crossBrandData(Sd.metric)) : Object.keys(DETAILED.states[Sd.state]); }
+function fullMonths(){ return Sd.mode==='cross'? DETAILED.months.filter(mo=>{const cb=crossBrandData(Sd.metric);return Object.keys(cb).some(b=>Object.keys(cb[b]).some(st=>cb[b][st][mo]!=null));}) : stateMonths(Sd.state); }
+function entVal(ent, mo){
+  if(Sd.mode==='cross'){ const cb=crossBrandData(Sd.metric); if(!cb[ent]) return null; let v=0,has=false; for(const st in cb[ent]){ if(cb[ent][st][mo]!=null){v+=cb[ent][st][mo];has=true;} } return has?v:null; }
+  return opVal(Sd.state, ent, mo, Sd.metric);
+}
+function entTotal(ent){ return fullMonths().reduce((a,mo)=>a+(entVal(ent,mo)||0),0); }
+function rankedEntities(){ return detEntities().map(e=>({e,tot:entTotal(e)})).sort((a,b)=>b.tot-a.tot); }
+function detWindowMonths(months){ if(Sd.window==='all') return months; const n=parseInt(Sd.window); return months.slice(-n); }
+function applyDetView(months, vals){
+  if(Sd.view==='raw') return vals.slice();
+  return months.map((mo,i)=>{ const cur=vals[i]; if(cur==null) return null;
+    const pk=Sd.view==='mom'?prevMonthKey(mo):prevYearMonth(mo); const pi=months.indexOf(pk);
+    const prev=pi>=0?vals[pi]:null; if(prev==null||prev===0) return null; return (cur-prev)/prev*100; });
+}
+function detLabel(){ return DET_METRICS[Sd.metric]; }
+function viewSuffix(){ return Sd.view==='raw'?'':(Sd.view==='mom'?' — MoM %':' — YoY %'); }
+
+function renderDetailed(){
+  _cb={};
+  if(Sd.mode==='cross' && crossStatesFor(Sd.metric).length===0){ Sd.metric='r'; }
+  assignDetColors();
+  renderDetModeUI();
+  renderDetStates();
+  renderDetMetricBtns();
+  renderDetOpToggles();
+  renderDetMonth();
+  renderDetKpis();
+  renderDetAggChart();
+  renderDetByChart();
+  renderDetTable();
+  renderDetQuarterly();
+  renderDetCoverage();
+}
+function assignDetColors(){ Sd.colors={}; rankedEntities().forEach((x,i)=>{ Sd.colors[x.e]=PALETTE[i%PALETTE.length]; }); }
+function detColor(e){ return Sd.colors[e]||'#888'; }
+
+function renderDetModeUI(){
+  document.getElementById('detModeState').classList.toggle('active',Sd.mode==='state');
+  document.getElementById('detModeCross').classList.toggle('active',Sd.mode==='cross');
+  document.getElementById('detStateRow').style.display=Sd.mode==='cross'?'none':'';
+  document.getElementById('detMetricRow').style.display='';
+  document.getElementById('detVraw').classList.toggle('active',Sd.view==='raw');
+  document.getElementById('detVmom').classList.toggle('active',Sd.view==='mom');
+  document.getElementById('detVyoy').classList.toggle('active',Sd.view==='yoy');
+  document.getElementById('detOpLabel').firstChild.textContent=(Sd.mode==='cross'?'Operator brands ':'Operators ');
+}
+function setDetMode(m){ Sd.mode=m; if(m==='cross' && crossStatesFor(Sd.metric).length===0) Sd.metric='r'; resetActive(); renderDetailed(); }
+function setDetState(s){ Sd.state=s; if(!metricOK(s,Sd.metric)) Sd.metric='r'; resetActive(); renderDetailed(); }
+function setDetMetric(m){ const ok=Sd.mode==='cross'?crossStatesFor(m).length>0:metricOK(Sd.state,m); if(!ok) return; Sd.metric=m; if(Sd.mode==='cross') resetActive(); renderDetailed(); }
+function setDetView(v){ Sd.view=v; renderDetailed(); }
+function setDetWindow(v){ Sd.window=v; renderDetailed(); }
+function selMonth(){ const fm=fullMonths(); return (Sd.month && fm.includes(Sd.month))? Sd.month : fm[fm.length-1]; }
+function setDetMonth(v){ Sd.month=v; renderDetMonth(); renderDetKpis(); renderDetTable(); }
+function renderDetMonth(){ const sel=document.getElementById('detMonth'); if(!sel) return; const fm=fullMonths(); const cur=selMonth(); sel.innerHTML=fm.slice().reverse().map(mo=>'<option value="'+mo+'"'+(mo===cur?' selected':'')+'>'+fmtMonthLabel(mo)+'</option>').join(''); }
+function resetActive(){ Sd.active=new Set(rankedEntities().slice(0,8).map(x=>x.e)); }
+function detSelect(mode){
+  const ents=rankedEntities();
+  if(mode==='all') Sd.active=new Set(ents.map(x=>x.e));
+  else if(mode==='none') Sd.active=new Set();
+  else Sd.active=new Set(ents.slice(0,8).map(x=>x.e));
+  renderDetailed();
+}
+
+function renderDetStates(){
+  const box=document.getElementById('detStateBtns'); box.innerHTML='';
+  for(const s of detStates()){ const b=document.createElement('button'); b.className='view-btn'+(s===Sd.state?' active':''); b.textContent=s; b.onclick=()=>setDetState(s); box.appendChild(b); }
+}
+function renderDetMetricBtns(){
+  const box=document.getElementById('detMetricBtns'); box.innerHTML='';
+  const cross=Sd.mode==='cross';
+  for(const m of ['r','n','h','p','t']){ const ok=cross?crossStatesFor(m).length>0:metricOK(Sd.state,m); const b=document.createElement('button'); b.className='view-btn'+(m===Sd.metric?' active':''); b.textContent=DET_METRICS[m]; if(!ok){ b.style.opacity='0.35'; b.style.cursor='not-allowed'; b.title=cross?('No states report '+DET_METRICS[m]):('Not reported for '+Sd.state); } else if(cross){ b.title=DET_METRICS[m]+': '+crossStatesFor(m).length+' of '+detStates().length+' states'; } b.onclick=()=>setDetMetric(m); box.appendChild(b); }
+}
+function renderDetOpToggles(){
+  const box=document.getElementById('detOpToggles'); box.innerHTML='';
+  const ents=rankedEntities();
+  for(const {e} of ents){ const on=Sd.active.has(e); const b=document.createElement('button'); b.className='st-btn'+(on?' active':''); b.style.color=on?detColor(e):''; b.innerHTML='<span class="dot" style="background:'+detColor(e)+'"></span>'+e; b.onclick=()=>{ if(Sd.active.has(e))Sd.active.delete(e); else Sd.active.add(e); renderDetailed(); }; box.appendChild(b); }
+  document.getElementById('detOpCount').textContent='('+Sd.active.size+' of '+ents.length+' shown)';
+  const note=document.getElementById('detOpNote');
+  if(Sd.mode==='cross'){ const incl=crossStatesFor(Sd.metric), all=detStates(), excl=all.filter(s=>!incl.includes(s)); const kind=(detKind==='osb'?'OSB':'iGaming'); note.innerHTML='<strong style="color:var(--text-secondary)">'+DET_METRICS[Sd.metric]+' — operator brands aggregated across '+incl.length+' of '+all.length+' '+kind+' states reporting this field:</strong> '+incl.join(', ')+(excl.length?' <span class="text-muted">· Excluded (no '+DET_METRICS[Sd.metric]+' data): '+excl.join(', ')+'</span>':''); }
+  else note.textContent=DETAILED.meta[Sd.state].source;
+}
+
+function detSeries(valFn){ const fm=fullMonths(); const vals=fm.map(valFn); const viewed=applyDetView(fm,vals); const disp=detWindowMonths(fm); return disp.map(mo=>({x:mo+'-01', y:viewed[fm.indexOf(mo)]})); }
+function detYaxis(){ return Sd.view==='raw'?{ticks:{callback:v=>fmtMoney(v),color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}}:{ticks:{callback:v=>v.toFixed(0)+'%',color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}}; }
+function detOpts(){ return { responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, plugins:{ legend:{labels:{color:'#94a3b8',boxWidth:12,font:{size:10}}}, tooltip:{callbacks:{label:c=>c.dataset.label+': '+(Sd.view==='raw'?fmtMoney(c.parsed.y):(c.parsed.y==null?'—':fmtPct(c.parsed.y)))}}}, scales:{ x:{type:'time',time:{unit:'year'},ticks:{color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}}, y:detYaxis() } }; }
+
+function renderDetAggChart(){
+  const accent=Sd.mode==='cross'?'#8b5cf6':'#3b82f6';
+  const pts=detSeries(mo=>{ let v=0,has=false; for(const e of detEntities()){ const x=entVal(e,mo); if(x!=null){v+=x;has=true;} } return has?v:null; });
+  document.getElementById('detAggTitle').textContent=(Sd.mode==='cross'?'All states total — ':(Sd.state+' total — '))+detLabel()+viewSuffix();
+  document.getElementById('detAggSub').textContent=Sd.view==='raw'?'Sum of all operators':detLabel()+' growth';
+  if(detAggChart) detAggChart.destroy();
+  detAggChart=new Chart(document.getElementById('detAggChart'),{type:'line',data:{datasets:[{label:'Total',data:pts,borderColor:accent,backgroundColor:accent+'22',fill:true,tension:0.25,pointRadius:0,borderWidth:2,spanGaps:true}]},options:detOpts()});
+}
+function renderDetByChart(){
+  const ds=[];
+  for(const {e} of rankedEntities()){ if(!Sd.active.has(e)) continue; ds.push({label:e,data:detSeries(mo=>entVal(e,mo)),borderColor:detColor(e),backgroundColor:detColor(e),fill:false,tension:0.25,pointRadius:0,borderWidth:2,spanGaps:true}); }
+  document.getElementById('detChartTitle').textContent=(Sd.mode==='cross'?'By operator brand — ':'By operator — ')+detLabel()+viewSuffix();
+  document.getElementById('detChartSub').textContent=ds.length?ds.length+(Sd.mode==='cross'?' brand':' operator')+(ds.length>1?'s':'')+' shown':'Select operators below to plot';
+  if(detChart) detChart.destroy();
+  detChart=new Chart(document.getElementById('detChart'),{type:'line',data:{datasets:ds},options:detOpts()});
+}
+
+function renderDetTable(){
+  const fm=fullMonths(); const last=selMonth(); const pm=prevMonthKey(last), py=prevYearMonth(last);
+  const ents=rankedEntities();
+  const grandLast=ents.reduce((a,x)=>a+(entVal(x.e,last)||0),0);
+  const rows=ents.map(({e,tot})=>{ const cur=entVal(e,last),vpm=entVal(e,pm),vpy=entVal(e,py);
+    return {e,cur,tot,mom:(vpm&&cur!=null)?((cur-vpm)/vpm*100):null,yoy:(vpy&&cur!=null)?((cur-vpy)/vpy*100):null,share:(cur!=null&&grandLast)?cur/grandLast*100:null}; });
+  document.getElementById('detTableTitle').textContent=(Sd.mode==='cross'?'Operator brands — ':(Sd.state+' operators — '))+detLabel()+' ('+fmtMonthLabel(last)+')';
+  document.getElementById('detTableNote').textContent=Sd.mode==='cross'?(detLabel()+' · aggregated across '+crossStatesFor(Sd.metric).length+' of '+detStates().length+' states'):DETAILED.meta[Sd.state].source;
+  document.getElementById('detTableHead').innerHTML='<tr><th>'+(Sd.mode==='cross'?'Operator brand':'Operator')+'</th><th class="text-right">'+detLabel()+'</th><th class="text-right">MoM %</th><th class="text-right">YoY %</th><th class="text-right">Share</th><th class="text-right">Period total</th></tr>';
+  document.getElementById('detTableBody').innerHTML=rows.map(r=>'<tr><td><span class="swatch" style="background:'+detColor(r.e)+'"></span>'+r.e+'</td><td class="text-right">'+fmtMoney(r.cur)+'</td><td class="text-right '+pctCls(r.mom)+'">'+fmtPct(r.mom)+'</td><td class="text-right '+pctCls(r.yoy)+'">'+fmtPct(r.yoy)+'</td><td class="text-right text-muted">'+(r.share==null?'—':r.share.toFixed(1)+'%')+'</td><td class="text-right text-muted">'+fmtMoney(r.tot)+'</td></tr>').join('');
+}
+function renderDetKpis(){
+  const grid=document.getElementById('detKpiGrid'); grid.innerHTML='';
+  const fm=fullMonths(); const last=selMonth();
+  const ents=rankedEntities().filter(x=>x.tot>0);
+  const lastTot=ents.reduce((a,x)=>a+(entVal(x.e,last)||0),0);
+  const periodTot=ents.reduce((a,x)=>a+x.tot,0);
+  const cards=[
+    [detLabel()+String.fromCharCode(160)+'· '+fmtMonthLabel(last), fmtMoney(lastTot), Sd.mode===String.fromCharCode(99,114,111,115,115)?'all states':Sd.state],
+    ['Period '+detLabel(), fmtMoney(periodTot), fm.length+' months'],
+    [Sd.mode==='cross'?'Brands':'Operators', String(ents.length), Sd.mode==='cross'?('across '+crossStatesFor(Sd.metric).length+' of '+detStates().length+' states'):DETAILED.meta[Sd.state].metrics.map(m=>DET_METRICS[m]).join(', ')],
+    ['Top'+(Sd.mode==='cross'?' brand':' operator'), ents.length?ents[0].e.split(' (')[0].split(' / ')[0]:'—', ents.length?fmtMoney(ents[0].tot):'']
+  ];
+  for(const [l,v,s] of cards){ const c=document.createElement('div'); c.className='kpi-card'; c.innerHTML='<div class="kpi-label">'+l+'</div><div class="kpi-value" style="font-size:18px;">'+v+'</div><div class="kpi-sub">'+s+'</div>'; grid.appendChild(c); }
+}
+function detQuarters(){ const fm=fullMonths(); const qm={}; for(const mo of fm){ const k=getQtr(mo); (qm[k]=qm[k]||[]).push(mo); } const keys=Object.keys(qm).sort(); keys.forEach(k=>qm[k].sort()); return {keys,qm}; }
+function detQVal(ent,qkey,qm){ let v=0,has=false; for(const mo of qm[qkey]){ const x=entVal(ent,mo); if(x!=null){v+=x;has=true;} } return has?v:null; }
+function detQYoYEnt(ent,qkey,qm){ let cur=0,prev=0,have=false; for(const mo of qm[qkey]){ const pm=prevYearMonth(mo); const c=entVal(ent,mo),p=entVal(ent,pm); if(c!=null&&p!=null){cur+=c;prev+=p;have=true;} } return (have&&prev!==0)?(cur-prev)/prev*100:null; }
+function detQYoYSel(qkey,qm){ let cur=0,prev=0,have=false; const ents=Sd.active.size?[...Sd.active]:detEntities(); for(const mo of qm[qkey]){ const pm=prevYearMonth(mo); for(const e of ents){ const c=entVal(e,mo),p=entVal(e,pm); if(c!=null&&p!=null){cur+=c;prev+=p;have=true;} } } return (have&&prev!==0)?(cur-prev)/prev*100:null; }
+function detQYoYTotal(qkey,qm){ let cur=0,prev=0,have=false; for(const mo of qm[qkey]){ const pm=prevYearMonth(mo); for(const e of detEntities()){ const c=entVal(e,mo),p=entVal(e,pm); if(c!=null&&p!=null){cur+=c;prev+=p;have=true;} } } return (have&&prev!==0)?(cur-prev)/prev*100:null; }
+function renderDetQuarterly(){
+  const {keys,qm}=detQuarters();
+  if(!keys.length) return;
+  const lastK=keys[keys.length-1]; const partial=qm[lastK].length<3;
+  document.getElementById('detQSub').textContent='Calendar-quarter totals · '+detLabel()+(partial?' · '+lastK+' partial ('+qm[lastK].length+'/3 mo) — YoY compared like-for-like':'')+(Sd.mode==='cross'?' · aggregated across states':'');
+  const ents=rankedEntities();
+  // trend: line per active operator
+  const ds=[];
+  for(const {e} of ents){ if(!Sd.active.has(e)) continue; ds.push({label:e,data:keys.map(k=>({x:qtrToDate(k),y:detQVal(e,k,qm)})),borderColor:detColor(e),backgroundColor:detColor(e),fill:false,tension:0.25,pointRadius:2,borderWidth:2,spanGaps:true}); }
+  document.getElementById('detQTrendTitle').textContent=(Sd.mode==='cross'?'Quarterly '+detLabel()+' by brand':'Quarterly '+detLabel()+' by operator');
+  document.getElementById('detQTrendSub').textContent=ds.length?ds.length+' shown':'Select operators above';
+  if(detQTrend) detQTrend.destroy();
+  detQTrend=new Chart(document.getElementById('detQTrend'),{type:'line',data:{datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#94a3b8',boxWidth:12,font:{size:10}}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtMoney(c.parsed.y)}}},scales:{x:{type:'time',time:{unit:'year'},ticks:{color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}},y:{ticks:{callback:v=>fmtMoney(v),color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}}}}});
+  // YoY bar (total, like-for-like)
+  const yoy=keys.map(k=>detQYoYSel(k,qm));
+  const _nsel=Sd.active.size, _ntot=rankedEntities().length, _w=(Sd.mode==="cross"?"brand":"operator");
+  document.getElementById("detQYoYTitle").textContent="YoY growth — "+(_nsel===0?("all "+_ntot+" "+_w+"s"):(_nsel===1?[...Sd.active][0].split(" (")[0].split(" / ")[0]:(_nsel+" selected "+_w+"s")));
+  document.getElementById("detQYoYSub").textContent="like-for-like vs same quarter prior year"+((_nsel>0&&_nsel<_ntot)?" · selected only":((_nsel===0)?" · all operators":""));
+  const labels=keys.map(k=>qm[k].length<3?k+'*':k);
+  if(detQYoY) detQYoY.destroy();
+  detQYoY=new Chart(document.getElementById('detQYoY'),{type:'bar',data:{labels,datasets:[{label:'YoY %',data:yoy,backgroundColor:yoy.map(x=>x==null?'#475569':(x>=0?'#22c55e':'#ef4444'))}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>{const k=keys[c[0].dataIndex];return k+(qm[k].length<3?' (partial '+qm[k].length+'mo, like-for-like)':'');},label:c=>'YoY: '+(c.parsed.y==null?'—':fmtPct(c.parsed.y))}}},scales:{x:{ticks:{color:'#94a3b8',maxRotation:60,minRotation:45,autoSkip:true,maxTicksLimit:14},grid:{display:false}},y:{ticks:{callback:v=>v.toFixed(0)+'%',color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}}}}});
+  // table: operators x last 8 quarters + latest YoY (like-for-like) + period total
+  const showK=keys.slice(-8);
+  document.getElementById('detQTableTitle').textContent=(Sd.mode==='cross'?'Quarterly '+detLabel()+' by brand':'Quarterly '+detLabel()+' by operator');
+  document.getElementById('detQTableNote').textContent='* partial quarter \u00b7 % beneath each figure = YoY vs same quarter prior year (like-for-like)';
+  document.getElementById('detQTableHead').innerHTML='<tr><th>'+(Sd.mode==='cross'?'Brand':'Operator')+'</th>'+showK.map(k=>'<th class="text-right">'+k+(qm[k].length<3?' *':'')+'</th>').join('')+'</tr>';
+  const qcell=(val,yoy)=>'<td class="text-right">'+fmtMoney(val)+'<div style="font-size:10px;font-weight:600;margin-top:2px;" class="'+pctCls(yoy)+'">'+fmtPct(yoy)+'</div></td>';
+  let body=ents.map(({e})=>{ const cells=showK.map(k=>qcell(detQVal(e,k,qm),detQYoYEnt(e,k,qm))).join(''); return '<tr><td><span class="swatch" style="background:'+detColor(e)+'"></span>'+e+'</td>'+cells+'</tr>'; }).join('');
+  const totRow=showK.map(k=>{ let v=0; for(const {e} of ents)v+=(detQVal(e,k,qm)||0); return qcell(v,detQYoYTotal(k,qm)); }).join('');
+  body+='<tr class="total-row"><td>Total</td>'+totRow+'</tr>';
+  document.getElementById('detQTableBody').innerHTML=body;
+}
+function renderDetCoverage(){
+  const box=document.getElementById('detCoverage');
+  const badge=s=> s==='done'?'<span style="color:var(--positive);font-weight:600;">✔ Complete</span>':(s==='partial'?'<span style="color:#f59e0b;font-weight:600;">◑ In progress</span>':'<span style="color:#f59e0b;font-weight:600;">◑ Pending</span>');
+  box.innerHTML='<table style="font-size:12.5px;"><thead><tr><th>State</th><th>Source</th><th>Status</th><th>Detail</th></tr></thead><tbody>'+
+    DET_COVERAGE.map(r=>'<tr><td>'+r[0]+'</td><td class="text-muted">'+r[1]+'</td><td>'+badge(r[2])+'</td><td class="text-muted">'+r[3]+'</td></tr>').join('')+'</tbody></table>'+
+    '<div class="note" style="margin-top:10px;">'+(detKind==='osb'?('Operator handle &amp; GGR reconcile to the aggregate OSB totals for all '+DET_COVERAGE_OSB.length+' states, every month, from the consolidated operator dataset (Full Dataset with brands, SPORTS sheet).'):('Operator GGR reconciles exactly to the aggregate iGaming totals for all 7 states, every month. Six states come from the consolidated operator dataset (Full Dataset with brands); Pennsylvania uses PGCB casino figures with iLottery excluded.'))+'</div>';
+}
+const DETAILED_NYW = __TRACKER_DATA__["DETAILED_NYW"];
+/* ===== New York Weekly (mobile sports wagering by operator) ===== */
+let Nw = { metric:'h', view:'raw', window:'52', week:null, active:new Set(), colors:{} };
+let nwAggChart, nwOpChart;
+const NW_METRICS={h:'Handle',r:'GGR',hold:'Hold %'};
+function nwOps(){return Object.keys(DETAILED_NYW.ops);}
+function nwWeeksAll(){return DETAILED_NYW.weeks;}
+function nwVal(op,wk){const r=DETAILED_NYW.ops[op][wk];if(!r)return null;if(Nw.metric==='h')return r.h;if(Nw.metric==='r')return r.r;if(Nw.metric==='hold')return (r.h&&r.r!=null)?(r.r/r.h*100):null;return null;}
+function nwAggVal(wk){const sel=Nw.active.size?[...Nw.active]:nwOps();let sh=0,sr=0,ok=false;for(const e of sel){const r=DETAILED_NYW.ops[e][wk];if(!r)continue;if(r.h!=null){sh+=r.h;ok=true;}if(r.r!=null){sr+=r.r;ok=true;}}if(!ok)return null;if(Nw.metric==='h')return sh;if(Nw.metric==='r')return sr;return sh?sr/sh*100:null;}
+function nwSelWeek(){const w=nwWeeksAll();return (Nw.week&&w.includes(Nw.week))?Nw.week:w[w.length-1];}
+function nwWindowWeeks(weeks){if(Nw.window==='all')return weeks;const n=parseInt(Nw.window);return weeks.slice(-n);}
+function applyNwView(vals){if(Nw.view==='raw')return vals.slice();const back=Nw.view==='wow'?1:52;return vals.map((v,i)=>{if(v==null)return null;const p=vals[i-back];if(p==null||p===0)return null;return (v-p)/p*100;});}
+function nwRankHandle(op){return nwWeeksAll().slice(-52).reduce((a,wk)=>{const r=DETAILED_NYW.ops[op][wk];return a+((r&&r.h)||0);},0);}
+function nwRanked(){return nwOps().map(op=>({e:op,tot:nwRankHandle(op)})).sort((a,b)=>b.tot-a.tot);}
+function nwColor(e){return Nw.colors[e]||'#888';}
+function assignNwColors(){Nw.colors={};nwRanked().forEach((x,i)=>{Nw.colors[x.e]=PALETTE[i%PALETTE.length];});}
+function nwLabel(){return NW_METRICS[Nw.metric];}
+function nwViewSuffix(){return Nw.view==='raw'?'':(Nw.view==='wow'?' — WoW %':' — YoY %');}
+function nwFmtVal(v){if(v==null)return '—';return Nw.metric==='hold'?v.toFixed(1)+'%':fmtMoney(v);}
+function nwWkLabel(wk){const d=new Date(wk+'T00:00:00');return 'wk end '+d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+function nwSeries(valFn){const wk=nwWeeksAll();const vals=wk.map(valFn);const viewed=applyNwView(vals);const disp=nwWindowWeeks(wk);return disp.map(w=>({x:w,y:viewed[wk.indexOf(w)]}));}
+function nwYtick(){if(Nw.view!=='raw')return {ticks:{callback:v=>v.toFixed(0)+'%',color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}};if(Nw.metric==='hold')return {ticks:{callback:v=>v.toFixed(0)+'%',color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}};return {ticks:{callback:v=>fmtMoney(v),color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}};}
+function nwOpts(){return {responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#94a3b8',boxWidth:12,font:{size:10}}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(Nw.view==='raw'?nwFmtVal(c.parsed.y):(c.parsed.y==null?'—':fmtPct(c.parsed.y)))}}},scales:{x:{type:'time',time:{unit:'month'},ticks:{color:'#94a3b8',maxTicksLimit:12},grid:{color:'rgba(51,65,85,0.4)'}},y:nwYtick()}};}
+function renderNyw(){
+  assignNwColors();
+  if(!Nw.active.size) Nw.active=new Set(nwRanked().slice(0,5).map(x=>x.e));
+  renderNwMetricBtns(); renderNwViewBtns(); document.getElementById('nwWindow').value=Nw.window; renderNwWeek();
+  renderNwToggles(); renderNwKpis(); renderNwAggChart(); renderNwOpChart(); renderNwTable(); renderNwQuarterly();
+}
+function renderNwViewBtns(){['raw','wow','yoy'].forEach(v=>document.getElementById('nwV'+v).classList.toggle('active',Nw.view===v));}
+function renderNwMetricBtns(){const box=document.getElementById('nwMetricBtns');box.innerHTML='';for(const m of ['h','r','hold']){const b=document.createElement('button');b.className='view-btn'+(m===Nw.metric?' active':'');b.textContent=NW_METRICS[m];b.onclick=()=>setNwMetric(m);box.appendChild(b);}}
+function renderNwWeek(){const sel=document.getElementById('nwWeek');const w=nwWeeksAll();const cur=nwSelWeek();sel.innerHTML=w.slice().reverse().map(wk=>'<option value="'+wk+'"'+(wk===cur?' selected':'')+'>'+nwWkLabel(wk)+'</option>').join('');}
+function renderNwToggles(){const box=document.getElementById('nwOpToggles');box.innerHTML='';const ents=nwRanked();for(const {e} of ents){const on=Nw.active.has(e);const b=document.createElement('button');b.className='st-btn'+(on?' active':'');b.style.color=on?nwColor(e):'';b.innerHTML='<span class="dot" style="background:'+nwColor(e)+'"></span>'+e;b.onclick=()=>{if(Nw.active.has(e))Nw.active.delete(e);else Nw.active.add(e);renderNyw();};box.appendChild(b);}document.getElementById('nwOpCount').textContent='('+Nw.active.size+' of '+ents.length+' shown)';document.getElementById('nwNote').innerHTML='<strong style="color:var(--text-secondary)">NY State Gaming Commission — weekly mobile sports wagering by operator</strong> · week-ending Sunday · '+nwWeeksAll().length+' weeks (from 2022). Weekly figures are as-reported; weekly sums do not tie exactly to calendar-month totals (boundary weeks).';}
+function setNwMetric(m){Nw.metric=m;if(m==='hold'&&Nw.view!=='raw')Nw.view='raw';renderNyw();}
+function setNwView(v){Nw.view=v;renderNyw();}
+function setNwWindow(v){Nw.window=v;renderNyw();}
+function setNwWeek(v){Nw.week=v;renderNwKpis();renderNwTable();renderNwWeek();}
+function nwSelect(mode){const ents=nwRanked();if(mode==='all')Nw.active=new Set(ents.map(x=>x.e));else if(mode==='none')Nw.active=new Set();else Nw.active=new Set(ents.slice(0,5).map(x=>x.e));renderNyw();}
+function renderNwAggChart(){const accent='#f59e0b';const pts=nwSeries(nwAggVal);
+  document.getElementById('nwAggTitle').textContent='NY total (selected) — '+nwLabel()+nwViewSuffix();
+  document.getElementById('nwAggSub').textContent=Nw.view==='raw'?(Nw.metric==='hold'?'Blended hold across selected operators':'Sum of selected operators'):nwLabel()+' growth';
+  if(nwAggChart)nwAggChart.destroy();
+  nwAggChart=new Chart(document.getElementById('nwAggChart'),{type:'line',data:{datasets:[{label:'NY total',data:pts,borderColor:accent,backgroundColor:accent+'22',fill:true,tension:0.2,pointRadius:0,borderWidth:2,spanGaps:true}]},options:nwOpts()});}
+function renderNwOpChart(){const ds=[];for(const {e} of nwRanked()){if(!Nw.active.has(e))continue;ds.push({label:e,data:nwSeries(wk=>nwVal(e,wk)),borderColor:nwColor(e),backgroundColor:nwColor(e),fill:false,tension:0.2,pointRadius:0,borderWidth:2,spanGaps:true});}
+  document.getElementById('nwOpChartTitle').textContent='By operator — '+nwLabel()+nwViewSuffix();
+  document.getElementById('nwOpChartSub').textContent=ds.length?ds.length+' operator'+(ds.length>1?'s':'')+' shown':'Select operators below to plot';
+  if(nwOpChart)nwOpChart.destroy();
+  nwOpChart=new Chart(document.getElementById('nwOpChart'),{type:'line',data:{datasets:ds},options:nwOpts()});}
+function renderNwKpis(){const grid=document.getElementById('nwKpiGrid');grid.innerHTML='';const wa=nwWeeksAll();const sw=nwSelWeek();const last=wa[wa.length-1];
+  const ranked=nwRanked();const top=ranked[0];
+  const cards=[
+    [nwLabel()+' · '+nwWkLabel(sw).replace('wk end ',''), nwFmtVal(nwAggVal(sw)), 'NY total (selected ops)'],
+    ['Latest week ('+nwWkLabel(last).replace('wk end ','')+')', nwFmtVal(nwAggVal(last)), 'all operators'],
+    ['Operators', String(nwOps().length), Nw.active.size+' selected'],
+    ['Top operator (52-wk handle)', top?top.e:'—', top?fmtMoney(top.tot):'']
+  ];
+  for(const [l,v,s] of cards){const c=document.createElement('div');c.className='kpi-card';c.innerHTML='<div class="kpi-label">'+l+'</div><div class="kpi-value" style="font-size:18px;">'+v+'</div><div class="kpi-sub">'+s+'</div>';grid.appendChild(c);}}
+function renderNwTable(){const wa=nwWeeksAll();const sw=nwSelWeek();const idx=wa.indexOf(sw);const pw=idx>0?wa[idx-1]:null;const yw=idx>=52?wa[idx-52]:null;
+  const ents=nwRanked();
+  const grand=(Nw.metric==='hold')?0:ents.reduce((a,x)=>a+(nwVal(x.e,sw)||0),0);
+  const rows=ents.map(({e})=>{const cur=nwVal(e,sw);const vp=pw?nwVal(e,pw):null;const vy=yw?nwVal(e,yw):null;return {e,cur,wow:(vp&&cur!=null)?((cur-vp)/vp*100):null,yoy:(vy&&cur!=null)?((cur-vy)/vy*100):null,share:(Nw.metric!=='hold'&&cur!=null&&grand)?cur/grand*100:null};});
+  document.getElementById('nwTableTitle').textContent='NY operators — '+nwLabel()+' ('+nwWkLabel(sw).replace('wk end ','wk ')+')';
+  document.getElementById('nwTableNote').textContent='WoW vs prior week · YoY vs 52 weeks prior';
+  document.getElementById('nwTableHead').innerHTML='<tr><th>Operator</th><th class="text-right">'+nwLabel()+'</th><th class="text-right">WoW %</th><th class="text-right">YoY %</th><th class="text-right">Share</th></tr>';
+  document.getElementById('nwTableBody').innerHTML=rows.map(r=>'<tr><td><span class="swatch" style="background:'+nwColor(r.e)+'"></span>'+r.e+'</td><td class="text-right">'+nwFmtVal(r.cur)+'</td><td class="text-right '+pctCls(r.wow)+'">'+fmtPct(r.wow)+'</td><td class="text-right '+pctCls(r.yoy)+'">'+fmtPct(r.yoy)+'</td><td class="text-right text-muted">'+(r.share==null?'—':r.share.toFixed(1)+'%')+'</td></tr>').join('');}
+
+/* ---- NY Weekly: quarterly aggregation (from weekly, by week-ending date) ---- */
+let nwQTrend, nwQYoYChart;
+function nwQKey(wk){const d=new Date(wk+'T00:00:00');return d.getFullYear()+'-Q'+(Math.floor(d.getMonth()/3)+1);}
+function nwQDate(qk){const p=qk.split('-Q');return p[0]+'-'+String((+p[1]-1)*3+1).padStart(2,'0')+'-01';}
+function nwQuarters(){const qw={};for(const wk of nwWeeksAll()){const k=nwQKey(wk);(qw[k]=qw[k]||[]).push(wk);}const keys=Object.keys(qw).sort();keys.forEach(k=>qw[k].sort());return {keys,qw};}
+function nwQAgg(ops,qkey,qw){let sh=0,sr=0,ok=false;for(const wk of qw[qkey]){for(const e of ops){const r=DETAILED_NYW.ops[e][wk];if(!r)continue;if(r.h!=null){sh+=r.h;ok=true;}if(r.r!=null){sr+=r.r;ok=true;}}}if(!ok)return null;if(Nw.metric==='h')return sh;if(Nw.metric==='r')return sr;return sh?sr/sh*100:null;}
+function nwQValOp(op,qkey,qw){return nwQAgg([op],qkey,qw);}
+function nwQYoYFor(ops,qkey,qw){const wa=nwWeeksAll();let ch=0,cr=0,ph=0,pr=0,have=false;
+  for(const wk of qw[qkey]){const i=wa.indexOf(wk);const pi=i-52;if(pi<0)continue;const pwk=wa[pi];
+    for(const e of ops){const c=DETAILED_NYW.ops[e][wk],p=DETAILED_NYW.ops[e][pwk];if(!c||!p)continue;
+      if(c.h!=null&&p.h!=null){ch+=c.h;ph+=p.h;have=true;}
+      if(c.r!=null&&p.r!=null){cr+=c.r;pr+=p.r;have=true;}}}
+  if(!have)return null;
+  if(Nw.metric==='h')return ph?(ch-ph)/ph*100:null;
+  if(Nw.metric==='r')return pr?(cr-pr)/pr*100:null;
+  const cu=ch?cr/ch*100:null,pv=ph?pr/ph*100:null;return (cu!=null&&pv)?(cu-pv):null;}
+function nwQYtick(){if(Nw.metric==='hold')return {ticks:{callback:v=>v.toFixed(0)+'%',color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}};return {ticks:{callback:v=>fmtMoney(v),color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}};}
+function renderNwQuarterly(){
+  const {keys,qw}=nwQuarters();
+  if(!keys.length)return;
+  const lastK=keys[keys.length-1];
+  const isPartial=k=>(k===lastK&&qw[k].length<12);
+  const partial=isPartial(lastK);
+  const ents=nwRanked();
+  const sel=Nw.active.size?[...Nw.active]:nwOps();
+  const showK=keys.slice(-12);
+  document.getElementById('nwQSub').textContent='Calendar quarters built from weekly data (by week-ending date) · '+nwLabel()+' · '+keys.length+' quarters'+(partial?' · '+lastK+' partial ('+qw[lastK].length+' wk'+(qw[lastK].length>1?'s':'')+') — YoY like-for-like':'');
+  const ds=[];
+  for(const {e} of ents){if(!Nw.active.has(e))continue;ds.push({label:e,data:keys.map(k=>({x:nwQDate(k),y:nwQValOp(e,k,qw)})),borderColor:nwColor(e),backgroundColor:nwColor(e),fill:false,tension:0.25,pointRadius:2,borderWidth:2,spanGaps:true});}
+  document.getElementById('nwQTrendTitle').textContent='Quarterly '+nwLabel()+' by operator';
+  document.getElementById('nwQTrendSub').textContent=ds.length?ds.length+' operator'+(ds.length>1?'s':'')+' shown':'Select operators above';
+  if(nwQTrend)nwQTrend.destroy();
+  nwQTrend=new Chart(document.getElementById('nwQTrend'),{type:'line',data:{datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#94a3b8',boxWidth:12,font:{size:10}}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+nwFmtVal(c.parsed.y)}}},scales:{x:{type:'time',time:{unit:'quarter'},ticks:{color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}},y:nwQYtick()}}});
+  const yoy=keys.map(k=>nwQYoYFor(sel,k,qw));
+  const n=Nw.active.size;
+  document.getElementById('nwQYoYTitle').textContent='YoY growth — '+(n===0?('all '+ents.length+' operators'):(n===1?sel[0]:(n+' selected operators')))+' · '+nwLabel();
+  document.getElementById('nwQYoYSub').textContent='like-for-like vs same weeks prior year'+(partial?' · '+lastK+' partial':'');
+  const labels=keys.map(k=>isPartial(k)?k+'*':k);
+  if(nwQYoYChart)nwQYoYChart.destroy();
+  nwQYoYChart=new Chart(document.getElementById('nwQYoY'),{type:'bar',data:{labels,datasets:[{label:'YoY %',data:yoy,backgroundColor:yoy.map(x=>x==null?'#475569':(x>=0?'#22c55e':'#ef4444'))}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y==null?'—':fmtPct(c.parsed.y)}}},scales:{x:{ticks:{color:'#94a3b8'},grid:{display:false}},y:{ticks:{callback:v=>v.toFixed(0)+'%',color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}}}}});
+  document.getElementById('nwQTableTitle').textContent='Quarterly '+nwLabel()+' by operator';
+  document.getElementById('nwQTableNote').textContent='* partial quarter · % beneath each figure = YoY (like-for-like)';
+  document.getElementById('nwQTableHead').innerHTML='<tr><th>Operator</th>'+showK.map(k=>'<th class="text-right">'+k+(isPartial(k)?' *':'')+'</th>').join('')+'</tr>';
+  const qcell=(v,y)=>'<td class="text-right">'+nwFmtVal(v)+'<div style="font-size:10px;font-weight:600;margin-top:2px;" class="'+pctCls(y)+'">'+fmtPct(y)+'</div></td>';
+  let body=ents.map(({e})=>'<tr><td><span class="swatch" style="background:'+nwColor(e)+'"></span>'+e+'</td>'+showK.map(k=>qcell(nwQValOp(e,k,qw),nwQYoYFor([e],k,qw))).join('')+'</tr>').join('');
+  body+='<tr class="total-row"><td>Total ('+(Nw.active.size?Nw.active.size+' selected':'all')+')</td>'+showK.map(k=>qcell(nwQAgg(sel,k,qw),nwQYoYFor(sel,k,qw))).join('')+'</tr>';
+  document.getElementById('nwQTableBody').innerHTML=body;
+}
+
+resetActive();
+
+init();
+renderQuarterly();
+</script>
+<footer style="text-align:center;padding:20px 12px 32px;margin-top:24px;border-top:1px solid var(--border,#333);font-size:13px;color:var(--text-secondary,#888);">
+    File: <a href="OSB_iGaming_National_Tracker.html" style="color:var(--accent,#4ea1ff);text-decoration:none;">OSB_iGaming_National_Tracker.html</a>
+</footer>
+</body>
+</html>

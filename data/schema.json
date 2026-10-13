@@ -1,0 +1,58 @@
+{
+ "generated_by": "tracker-to-github-repo",
+ "datasets": {
+  "RAW": {
+   "kind": "object",
+   "required_keys": [
+    "igaming",
+    "osb"
+   ]
+  },
+  "DET_IG": {
+   "kind": "object",
+   "required_keys": [
+    "meta",
+    "months",
+    "states"
+   ]
+  },
+  "DET_OSB": {
+   "kind": "object",
+   "required_keys": [
+    "meta",
+    "months",
+    "states"
+   ]
+  },
+  "DET_COVERAGE_IG": {
+   "kind": "rows",
+   "row_length": 4,
+   "min_rows": 1,
+   "fields": {}
+  },
+  "DET_COVERAGE_OSB": {
+   "kind": "rows",
+   "row_length": 4,
+   "min_rows": 1,
+   "fields": {
+    "2": {
+     "role": "enum",
+     "values": [
+      "done"
+     ]
+    }
+   }
+  },
+  "DETAILED_NYW": {
+   "kind": "object",
+   "required_keys": [
+    "metrics",
+    "ops",
+    "source",
+    "weeks"
+   ]
+  }
+ },
+ "baseline_render_errors": [],
+ "note": "Validation rules inferred at conversion. Edit with care; scripts/validate.py reads this file."
+}
