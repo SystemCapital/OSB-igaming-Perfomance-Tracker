@@ -7,6 +7,7 @@ The live routine is **OSB iGaming National Tracker weekly refresh (cloud)** (`tr
 - **Environment:** "OSB Tracker", whose network access reaches the regulator sites. An environment on the default "Trusted" level only reaches package registries and GitHub, so the run could not open any source. That is what happened on 13 Oct 2026, when an earlier routine ran in the "OS Performance Tracker" environment.
 - **Repository:** this repository must be attached in the routine's settings (Repositories), with push access. Without it the git proxy refuses every push with 403 ("not in this session's authorized repository set"), as it did on the 14 Oct 2026 test run.
 - **Each run:** starts a fresh session, checks every state's source, pushes to `main`, and republishes the artifact https://claude.ai/artifact/2HadKEUvvZa7uE7nHBanfD when figures changed.
+- **Model:** Claude Opus (`claude-opus-5-5`). The routine default (Sonnet) gave shallow source checks in testing.
 - **Connectors:** none needed.
 
 **Prompt**
