@@ -4,6 +4,88 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>US iGaming &amp; OSB National Tracker</title>
+    <script data-tracker-diagnostics>
+    /* Error log. Script errors, scripts blocked by the host's Content-Security-Policy, failed loads
+       and console.error calls are listed in a red panel at the bottom of the page, so a problem in a
+       sandbox such as a Claude artifact is visible without opening the browser's developer tools. */
+    (function () {
+      var lines = [], box, pre;
+      function selectLog() {
+        var r = document.createRange(); r.selectNodeContents(pre);
+        var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      }
+      function button(label, onClick) {
+        var b = document.createElement("button");
+        b.textContent = label;
+        b.setAttribute("style", "margin-left:6px;padding:3px 10px;border:1px solid #ef4444;border-radius:4px;background:transparent;color:#fecaca;font:inherit;cursor:pointer");
+        b.onclick = onClick;
+        return b;
+      }
+      function render() {
+        if (!document.body) { setTimeout(render, 50); return; }
+        if (!box) {
+          box = document.createElement("div");
+          box.id = "tracker-errors";
+          box.setAttribute("role", "alert");
+          box.setAttribute("style", "position:fixed;left:12px;right:12px;bottom:12px;z-index:2147483647;max-height:45vh;overflow:auto;background:#2a0f12;border:1px solid #ef4444;border-radius:8px;padding:10px 12px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#fecaca;box-shadow:0 8px 24px rgba(0,0,0,.5)");
+          var bar = document.createElement("div");
+          bar.setAttribute("style", "display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-weight:700;color:#fff");
+          var title = document.createElement("span");
+          title.textContent = "Tracker error log";
+          var actions = document.createElement("span");
+          var copy = button("Copy", function () {
+            var text = lines.join("\n") + "\n\n" + navigator.userAgent;
+            try {
+              navigator.clipboard.writeText(text).then(function () { copy.textContent = "Copied"; }, selectLog);
+            } catch (e) { selectLog(); }
+          });
+          actions.appendChild(copy);
+          actions.appendChild(button("Hide", function () { box.style.display = "none"; }));
+          bar.appendChild(title);
+          bar.appendChild(actions);
+          pre = document.createElement("pre");
+          pre.setAttribute("style", "margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit");
+          box.appendChild(bar);
+          box.appendChild(pre);
+          document.body.appendChild(box);
+        }
+        pre.textContent = lines.join("\n");
+      }
+      function add(kind, text) {
+        lines.push(new Date().toISOString().slice(11, 19) + "  " + kind + ": " + text);
+        render();
+      }
+      window.addEventListener("error", function (e) {
+        var t = e.target;
+        if (t && t !== window && (t.src || t.href)) { add("failed to load", (t.tagName || "").toLowerCase() + " " + (t.src || t.href)); return; }
+        var where = e.filename ? " (" + String(e.filename).split("/").pop() + ":" + e.lineno + ":" + e.colno + ")" : "";
+        var stack = e.error && e.error.stack ? "\n    " + String(e.error.stack).split("\n").slice(1, 4).join("\n    ") : "";
+        add("script error", (e.message || "unknown error") + where + stack);
+      }, true);
+      window.addEventListener("unhandledrejection", function (e) {
+        var r = e.reason;
+        add("unhandled promise rejection", String(r && (r.stack || r.message) || r));
+      });
+      document.addEventListener("securitypolicyviolation", function (e) {
+        add("blocked by Content-Security-Policy", (e.effectiveDirective || e.violatedDirective) + " refused " +
+          (e.blockedURI || "inline code") + (e.lineNumber ? " (line " + e.lineNumber + ")" : "") +
+          (e.sample ? " starting \"" + e.sample.slice(0, 60) + "\"" : ""));
+      });
+      var consoleError = console.error;
+      console.error = function () {
+        try {
+          add("console.error", Array.prototype.map.call(arguments, function (a) {
+            return a && a.stack ? a.stack : (a && typeof a === "object" ? JSON.stringify(a) : String(a));
+          }).join(" "));
+        } catch (x) {}
+        return consoleError.apply(console, arguments);
+      };
+      setTimeout(function () {
+        var k = document.getElementById("kpiGrid");
+        if (k && !k.children.length) add("not drawn", "8 seconds after opening, the dashboard has drawn no KPI cards - its code did not run or stopped early (see entries above, if any).");
+      }, 8000);
+    })();
+    </script>
     <script src="vendor/chart.umd.min.js" data-vendor="chart.umd.min.js"></script>
     <script src="vendor/chartjs-adapter-date-fns.bundle.min.js" data-vendor="chartjs-adapter-date-fns.bundle.min.js"></script>
     <style>
@@ -102,6 +184,10 @@
             .charts-grid { grid-template-columns: 1fr; }
             header { flex-direction: column; }
             .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .vertical-toggle { flex-wrap: wrap; }
+            .vt-btn { padding: 8px 14px; font-size: 13px; }
+            .filters { flex-wrap: wrap; }
+            #detCoverage { overflow-x: auto; }
         }
     </style>
 </head>

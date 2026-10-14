@@ -39,6 +39,17 @@ def main():
     if i < 0:
         raise SystemExit("index.html has no <script data-tracker-loader> block")
     html = html[:i] + f"<script>window.__TRACKER_EMBED__={blob};</script>\n" + html[i:]
+    # Run the page code as ordinary inline scripts. index.html keeps it in text/plain blocks that its
+    # loader injects once data/*.json has loaded, but sandboxes with a nonce-based Content-Security-
+    # Policy (such as Claude artifacts) can refuse injected scripts, leaving an empty page. Here the data is
+    # already embedded, so a two-line boot script replaces the loader.
+    boot = ('<script data-tracker-boot>window.__TRACKER_DATA__=window.__TRACKER_EMBED__;'
+            '(function(m){if(!m||!m.snapshot_label)return;var e=document.querySelectorAll(".snapdate");'
+            'for(var i=0;i<e.length;i++)e[i].textContent=m.snapshot_label;})(window.__TRACKER_DATA__.meta);</script>')
+    html, n = re.subn(r"<script data-tracker-loader>[\s\S]*?</script>", lambda _: boot, html, count=1)
+    html, k = re.subn(r'<script type="text/plain" data-tracker-app>', "<script data-tracker-main>", html)
+    if n != 1 or not k:
+        raise SystemExit("index.html loader or data-tracker-app blocks not found")
     out.write_text(html, encoding="utf-8")
     print(f"Wrote {out.name} ({out.stat().st_size:,} bytes) - data and libraries embedded, works offline")
 

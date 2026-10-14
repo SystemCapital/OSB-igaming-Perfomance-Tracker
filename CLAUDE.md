@@ -10,7 +10,7 @@ This repository holds a tracker dashboard. Claude Code (often a scheduled routin
 | `data/meta.json` | Title, snapshot date shown on the page, build file name | Date only via `scripts/set_snapshot.py` |
 | `data/schema.json` | Validation rules inferred at conversion | Only to add a new dataset or field rule |
 | `index.html` | Dashboard page. Its code runs from `<script type="text/plain" data-tracker-app>` blocks after a small loader fetches `data/*.json` | Only for requested design changes |
-| `OSB_iGaming_National_Tracker.html` | Ready-to-open single-file build (data + libraries embedded) | Never by hand - run `scripts/build_standalone.py` |
+| `OSB_iGaming_National_Tracker.html` | Ready-to-open single-file build (data + libraries embedded). Also the Claude artifact: its code runs as ordinary inline scripts, not injected at runtime like `index.html`'s loader, because sandboxes with a nonce-based Content-Security-Policy (such as Claude artifacts) can refuse injected scripts | Never by hand - run `scripts/build_standalone.py` |
 | `vendor/` | Third-party libraries used by the page (with licences) | No |
 | `scripts/validate.py` | Checks data shape, sources, page scripts, build freshness, render | No |
 | `scripts/build_standalone.py` | Regenerates `OSB_iGaming_National_Tracker.html` | No |
@@ -20,6 +20,8 @@ This repository holds a tracker dashboard. Claude Code (often a scheduled routin
 | `refresh-log.md` | Audit trail - one line per update | Append only |
 
 Scripts need Python 3.9+ (standard library only). Node.js enables the page-script and render checks.
+
+**Error log.** The first `<script data-tracker-diagnostics>` block in `index.html` lists script errors, scripts blocked by a Content-Security-Policy, failed loads and `console.error` calls in a red panel at the bottom of the page, and notes when no KPI cards have been drawn 8 seconds after opening. If the user reports the page or artifact "not working", ask them to press **Copy** on that panel and paste the log. Don't remove it.
 
 ## Datasets
 
