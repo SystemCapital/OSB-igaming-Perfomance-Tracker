@@ -130,7 +130,10 @@ US online sports betting (OSB, ~35 states) and iGaming (CT, DE, MI, NJ, PA, RI, 
 - **RI:** rilot.com financials PDFs `SportsbookSummaryFY<YYYY>.pdf` and `iGamingWebsiteDataFY<YYYY>.pdf`. About a 3-week lag.
 - **OH:** `<YYYY>_Sports_Gaming_Revenue_Report<MM>.xlsx` (table above). Row "Total Online and Retail" gives h, r and p; promos are NOT deductible. t = 0.25%·h + 20%·taxable.
 - **VA:** Virginia Lottery letters to the Governor (table above). h = total wagers; r = wagers − winnings, not AGR; t = that month's 15% tax + 0.25%·h.
-- **NC:** h = Total Wagering Revenue, r = Gross Wagering Revenue, t = estimated tax.
+- **NC:** single statewide row in the monthly report (FY July to June). The tracker's basis, used for every month since 2024-03:
+  - h = Total Wagering Revenue − Cancelled/Void Wagers (net of voids, not the Total column alone).
+  - r = Gross Wagering Revenue; p = Promo Wagering Revenue; n = r − p.
+  - t = Estimated Tax Proceeds + 0.25%·h. The state rate is 18% to Jun 2026 and 23% from Jul 2026.
 - **NV:** Sports Pool win only (in thousands); handle is not in the report.
 - **rg.org/statistics/us/<state>** tables copy regulator figures.
   - The handle basis matches the tracker for MD/KS/LA/TN/IN/VA/IA.
