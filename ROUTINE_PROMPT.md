@@ -5,7 +5,8 @@ The live routine is **OSB iGaming National Tracker weekly refresh (cloud)** (`tr
 **Settings**
 - **Schedule:** weekly, Friday 8:46am Sydney time (`CRON_TZ=Australia/Sydney 46 8 * * 5`). NYSGC posts each week (ending Sunday) on the following Wednesday US time, and most regulators publish monthly, so a weekly run picks each month up within days.
 - **Environment:** "OSB Tracker", whose network access reaches the regulator sites. An environment on the default "Trusted" level only reaches package registries and GitHub, so the run could not open any source. That is what happened on 13 Oct 2026, when an earlier routine ran in the "OS Performance Tracker" environment.
-- **Each run:** starts a fresh session, attaches this repository itself with `add_repo`, pushes to `main`, and republishes the artifact https://claude.ai/artifact/2HadKEUvvZa7uE7nHBanfD when figures changed.
+- **Repository:** this repository must be attached in the routine's settings (Repositories), with push access. Without it the git proxy refuses every push with 403 ("not in this session's authorized repository set"), as it did on the 14 Oct 2026 test run.
+- **Each run:** starts a fresh session, checks every state's source, pushes to `main`, and republishes the artifact https://claude.ai/artifact/2HadKEUvvZa7uE7nHBanfD when figures changed.
 - **Connectors:** none needed.
 
 **Prompt**
@@ -13,15 +14,15 @@ The live routine is **OSB iGaming National Tracker weekly refresh (cloud)** (`tr
 ```text
 Weekly refresh of the US iGaming & OSB National Tracker in the GitHub repository SystemCapital/OSB-igaming-Perfomance-Tracker, then republish of its Claude artifact. This is an unattended scheduled run: nobody is watching, so do not ask questions. Finish the run and report.
 
-1. Repository. If the repository is not already checked out in your working directory, attach it with the add_repo tool (owner "SystemCapital", repo "OSB-igaming-Perfomance-Tracker", access "push") and clone it. Work from the latest main: `git fetch origin main && git checkout -B main origin/main`. Use `python3` wherever CLAUDE.md says `python`.
+1. Repository. This routine has the repository attached, so it should already be cloned in your working directory with push access. If it is not checked out, attach it with the add_repo tool (owner "SystemCapital", repo "OSB-igaming-Perfomance-Tracker", access "push") and clone it; if add_repo is not available, clone it with git and carry on. Work from the latest main: `git fetch origin main && git checkout -B main origin/main`. Use `python3` wherever CLAUDE.md says `python`.
 
 2. Read CLAUDE.md at the repository root in full and follow it exactly: the accuracy rules, the tracker-specific instructions ("Every run, in this order": staleness sweep, NY weekly, newly published months, vendor file) and the update procedure. It is the source of truth; the steps here add to it and do not replace it. The vendor file (`Full Dataset <Mon YY>.xlsx`) is not available to this run, so skip step 4 of "Every run" unless that file is in the repository.
 
-3. Network. Open the primary sources listed in CLAUDE.md directly (WebFetch, or curl/python3 for Excel, PDF and API files). If the egress proxy refuses the regulator hosts (HTTP 403 on CONNECT, or connection errors on most of them), say so in the first line of the report, change no figure you cannot source, and still do the staleness sweep and the log line. Never fill a gap with an estimate, a rounded press figure presented as final, or a prior-year figure.
+3. Sources: check every state, not a sample. For each state in RAW.osb and RAW.igaming, and for NY weekly, open that state's source from the "Sources (verified)" list in CLAUDE.md (for states listed there only by name, the regulator's or lottery's own monthly report page) and look for every month after the state's latest stored month. Use WebFetch, or curl/python3 for Excel, PDF and API files. Before you finish, every state and vertical must have exactly one result: added, not yet published (name what you opened), blocked (name the host and the error), or no usable source. A run that checks only a few states is incomplete. If the egress proxy refuses most regulator hosts (HTTP 403 on CONNECT, or connection errors), say so in the first line of the report, change no figure you cannot source, and still do the staleness sweep and the log line. Never fill a gap with an estimate, a rounded press figure presented as final, or a prior-year figure.
 
 4. Update. Run the update procedure in CLAUDE.md in order: edit data/*.json; `python3 scripts/set_snapshot.py`; `python3 scripts/new_links.py --check`; `python3 scripts/build_standalone.py`; `python3 scripts/validate.py`, which must print VALIDATION PASSED; append the line to refresh-log.md naming the source (URL or file) of every changed state-month or week. If validation still fails after you have tried to fix the data, do not commit; stop and report the errors.
 
-5. Commit and push to main. Commit data/, OSB_iGaming_National_Tracker.html and refresh-log.md with the message "Data refresh YYYY-MM-DD: <one-line summary>" and push straight to main with `git push origin HEAD:main`. This routine is authorised to push to main every week; do not open a pull request. If the push is rejected because main has moved, run `git pull --rebase origin main`, rebuild with build_standalone.py, validate again, commit any rebuild and push again. If git refuses the push for any other reason, push to a new branch claude/refresh-YYYY-MM-DD instead, skip step 6 and put the exact error at the top of the report.
+5. Commit and push to main. Commit data/, OSB_iGaming_National_Tracker.html and refresh-log.md with the message "Data refresh YYYY-MM-DD: <one-line summary>" and push straight to main with `git push origin HEAD:main`. This routine is authorised to push to main every week; do not open a pull request. If the push is rejected because main has moved, run `git pull --rebase origin main`, rebuild with build_standalone.py, validate again, commit any rebuild and push again. If the git proxy refuses the push with "not in this session's authorized repository set", say at the top of the report: "Push refused: add SystemCapital/OSB-igaming-Perfomance-Tracker to this routine's repositories on claude.ai", skip step 6 and still give the full report. If git refuses the push for any other reason, push to a new branch claude/refresh-YYYY-MM-DD instead, skip step 6 and put the exact error at the top of the report.
 
 6. Republish the artifact. Do this only when validation passed, your working tree matches origin/main after your push, and this run changed at least one figure in data/ (a run that only moved the snapshot date does not republish).
    a. Check the build is artifact-safe: OSB_iGaming_National_Tracker.html must contain `<script data-tracker-main>` and must not contain `type="text/plain" data-tracker-app`. Scripts injected at runtime are refused in the artifact sandbox and leave an empty page. If either check fails, do not publish; report "artifact not republished: build still uses the runtime loader".
@@ -30,10 +31,10 @@ Weekly refresh of the US iGaming & OSB National Tracker in the GitHub repository
 
 7. Report. End with a short summary:
    - the snapshot date set;
+   - a table with one row per state and vertical (OSB, iGaming) plus NY weekly: latest stored month or week, source opened, and result (added / not yet published / blocked / no usable source);
    - the staleness sweep: each state more than one month behind, and why it lags;
-   - the week NY weekly is current to;
    - each verified change (state, vertical, month or week, figures) with its source, or "No verified changes";
-   - unconfirmed or interim items, and sources that were blocked or could not be checked;
+   - unconfirmed or interim items;
    - the commit SHA pushed and its branch, or why nothing was pushed;
    - the artifact version published and the line ranges the subagents read, or why it was not republished.
 ```
