@@ -42,6 +42,7 @@ Roles: `sources` = list of `["Label", "https://url"]` pairs (minimum count enfor
 - Secondary sources (rg.org state tables, trade press) are allowed only when the regulator file is unreachable AND the figure matches the tracker's definition for that state (check against a month already stored from the primary source). Press-rounded values are **interim**: list them in the log so they get trued up.
 - **Verify the YEAR** on every press figure; news sites re-surface prior-year months (e.g. a "Virginia Aug $416.7M" article was 2025). If a figure can't be confirmed, leave the cell `null` and log it as unconfirmed.
 - **Staleness is acceptable; fabrication is not.**
+- **Small vendor differences:** when a stored vendor-file value differs from the regulator file by less than $10 (cent rounding, truncation, small revisions), keep the vendor value. Don't change it and don't list it as a discrepancy. Differences of $10 or more follow the rules above.
 - These datasets carry no `sources` field; record the source (URL or file name) for every changed state-month in `refresh-log.md`.
 
 ## Tracker-specific instructions
