@@ -59,9 +59,9 @@ US online sports betting (OSB, ~35 states) and iGaming (CT, DE, MI, NJ, PA, RI, 
 
 ### Every run, in this order
 1. **Staleness sweep (Rule 0):** list each state's latest month in RAW.osb and RAW.igaming. Any state more than one month behind the newest month is a defect: re-check its source this run and say why it lags.
-2. **NY weekly:** add every week posted after the last week in `DETAILED_NYW`. NYSGC posts a week on the Thursday or Friday after it ends. Say in the summary which week it's current to.
+2. **NY weekly:** add every week posted after the last week in `DETAILED_NYW`. NYSGC posts a week on the Friday after it ends, in the New York morning (week ending 11 Oct 2026: Friday 16 Oct, 10:37 to 10:45am New York time). Say in the summary which week it's current to.
 3. Pull newly published months from the sources below. Reconcile operator sums to statewide totals.
-4. If a new `Full Dataset <Mon YY>.xlsx` exists (it sits outside this repo; the user supplies it), overwrite every state-month it covers in RAW and rebuild DET_OSB from it. Keep regulator months beyond its coverage. Then run the post-load checks: PA iLottery fix; **dropout check** (any licensee/brand over $3M the prior month that goes to 0 while the state still reports = vendor gap, so don't load it; e.g. WV Mardi Gras online, Jun to Aug 2026); scan for negative `p` or federal-only `t` (e.g. CO 2026-06).
+4. If a new `Full Dataset <Mon YY>.xlsx` exists (it sits outside this repo; the user supplies it), overwrite every state-month it covers in RAW and rebuild DET_OSB from it. Keep regulator months beyond its coverage. Then run the post-load checks: PA iLottery fix; **dropout check** (any licensee/brand over $3M the prior month that goes to 0 while the state still reports = vendor gap, so don't load it; e.g. WV Mardi Gras online, Jun to Aug 2026); scan for negative `p` or federal-only `t` (e.g. CO 2026-06); **Nebraska:** the vendor's NE handle is 10 × GGR, a made-up figure, and its tax adds 0.25% of that handle, so set NE `h` to null and `t` to 20% of `r` in RAW and DET_OSB.
 
 ### Sources (verified)
 
@@ -95,7 +95,7 @@ US online sports betting (OSB, ~35 states) and iGaming (CT, DE, MI, NJ, PA, RI, 
 | MS | https://www.msgamingcommission.com/reports/monthly_reports | `https://www.msgamingcommission.com/files/monthly_reports/<MMYY>_sports_wagering.xlsx` (can be built). Row "Overall for State": write (handle) and taxable revenue. Retail only. A missing month returns 200 with an HTML page. |
 | MO | https://www.mgc.dps.mo.gov/SportsWagering/sw_financials/rb_SWFin_main.html | `FY<YY>_SWFinReport/<MM>_<Mon>/SW Monthly Financials <MMYY>.xlsx`. FY starts in July and the spacing varies, so take the link. Handle, deductions, taxable AGR and tax per licensee, retail + mobile. |
 | MT | https://montanalottery.com/news/ | Weekly press releases only, and the weeks cross month ends, so there is no official monthly figure. Use the vendor file or rg.org. |
-| NE | https://nrgc.nebraska.gov/gaming/reports | PDF "<YYYY> Gaming Tax Revenue Breakdown". The revision suffix changes, so take the link. Sports betting GGR per property. Retail only, no handle. |
+| NE | https://nrgc.nebraska.gov/gaming/reports | PDF "<YYYY> Gaming Tax Revenue Breakdown". The revision suffix changes, so take the link. Sports betting GGR per property; sum every property. Retail only. No handle is published, so store `h` = null. `t` = 20% of sports GGR, the state rate the report applies to all GGR. There is no federal excise, because it needs a handle. |
 | NV | https://www.gaming.nv.gov/about-us/gaming-revenue-information-gri/ | `monthly-revenue-report---<month>-<yyyy>.pdf`. The hyphen count and folder vary, so take the link. Sports Pool win in thousands; no handle. |
 | NH | https://www.nhlottery.com/About-Us/Financial-Reports | `Sports_Betting_Summary_FY<YY>.pdf`, hosted on Contentful, so take the link. |
 | NJ | OSB https://www.njoag.gov/about/divisions-and-offices/division-of-gaming-enforcement-home/financial-and-statistical-information/monthly-sports-wagering-revenue-reports/; iGaming https://www.njoag.gov/about/divisions-and-offices/division-of-gaming-enforcement-home/financial-and-statistical-information/monthly-internet-gross-revenue-reports/ | Tax returns: `https://www.nj.gov/oag/ge/docs/Financials/SWRTaxReturns/<YYYY>/<Month><YYYY>.pdf` (OSB) and `…/IGRTaxReturns/<YYYY>/<Month><YYYY>.pdf` (iGaming). Handle: `…/PressRelease<YYYY>/<Month><YYYY>.pdf`. Release dates: `…/PressReleaseDates/pressreleasedates<YYYY>.pdf`. Needs the browser agent. |
@@ -119,6 +119,9 @@ US online sports betting (OSB, ~35 states) and iGaming (CT, DE, MI, NJ, PA, RI, 
   - `/wynn-interactive-…` = ESPN Bet (its files now carry the theScore Bet name; keep it stored as ESPN Bet)
   - Each slug ends in `weekly-report-excel` or `monthly-report-excel`. Statewide: `/statewide-sports-wagering-monthly-report-excel`.
   - Sheets are by fiscal year ("FY 26-27" = April to March). The "Week-Ending" column is an Excel serial date. Use Handle and GGR.
+  - Find the columns from each sheet's header row; they move (FY 21-22 has Handle in B and GGR in D, later sheets C and F).
+  - The wynn-interactive file has two FY 24-25 sheets: "FY 24-25" (WynnBet, to Aug 2024) and "FY 24-25 ESPN" (ESPN Bet, from Sep 2024). Add both into ESPN Bet.
+  - Store whole dollars, rounded from the file's cents. Operator weeks must add up to `/statewide-sports-wagering-weekly-report-excel` (within $2 of rounding).
 - **CT:** Socrata API data.ct.gov `imqd-at3c` (iGaming), `xf6g-659c` (OSB). r = wagers − patron_winnings. Operators: MPI + MPTN = DraftKings, Mohegan Digital + Tribe = FanDuel, CT Lottery = PlaySugarHouse.
 - **NJ:** DGE `nj.gov/oag/ge/docs/Financials/IGRTaxReturns/<YYYY>/<Month><YYYY>.pdf` is iGaming: per-skin "SKIN DETAIL" pages, with line 3 win, line 11 tax and line 12 promos. OSB revenue is in `SWRTaxReturns/...` (lines 3 + 16); handle comes from the DGE press release. **Always confirm the "FOR THE MONTH OF" header**: file naming has shifted between publication month and data month.
 - **PA:** PGCB revenue page at gamingcontrolboard.pa.gov (www.pgcb.pa.gov fails). Use the FY files (`FY26-27 Monthly Interactive Gaming Report Summary.xlsx`, `…Sports Wagering…`). Files move to new dated folders, so **always re-scrape the link**.
@@ -147,7 +150,7 @@ US online sports betting (OSB, ~35 states) and iGaming (CT, DE, MI, NJ, PA, RI, 
   - WV, IL, KY and WY were listed as blocked before 14 Oct 2026; all four are reachable now (table above).
 
 ### Cadence
-NY weekly (posts Thu/Fri). Most regulators publish monthly, 10 to 25 days after month-end. AZ/IL/KY/CO/MO run about 6 to 8 weeks behind. The vendor file arrives roughly monthly.
+NY weekly (posts Friday morning New York time). Most regulators publish monthly, 10 to 25 days after month-end. AZ/IL/KY/CO/MO run about 6 to 8 weeks behind. The vendor file arrives roughly monthly.
 
 ## Update procedure
 

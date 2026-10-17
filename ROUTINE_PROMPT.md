@@ -3,7 +3,7 @@
 The live routine is **OSB iGaming National Tracker weekly refresh (cloud)** (`trig_01MiWmcJC2V5oxcyVp3RmjHd`). See or edit it at https://claude.ai/code/routines/trig_01MiWmcJC2V5oxcyVp3RmjHd. If you edit the prompt there, update the copy below to match.
 
 **Settings**
-- **Schedule:** weekly, Friday 8:46am Sydney time (`CRON_TZ=Australia/Sydney 46 8 * * 5`). NYSGC posts each week (ending Sunday) on the following Wednesday US time, and most regulators publish monthly, so a weekly run picks each month up within days.
+- **Schedule:** weekly, Saturday 1:46am New York time (`CRON_TZ=America/New_York 46 1 * * 6`), which is Saturday afternoon in Sydney. NYSGC posts each week (ending Sunday) on the following Friday morning New York time: the week ending 11 Oct 2026 went up on Friday 16 Oct, 10:37 to 10:45am New York time. The run follows that, so each run picks up the latest NY week. Most regulators publish monthly, so a weekly run also picks each month up within days.
 - **Environment:** "OSB Tracker", whose network access reaches the regulator sites. An environment on the default "Trusted" level only reaches package registries and GitHub, so the run could not open any source. That is what happened on 13 Oct 2026, when an earlier routine ran in the "OS Performance Tracker" environment.
 - **Repository:** this repository must be attached in the routine's settings (Repositories), with push access. Without it the git proxy refuses every push with 403 ("not in this session's authorized repository set"), as it did on the 14 Oct 2026 test run.
 - **Each run:** starts a fresh session, checks every state's source, pushes to `main`, and republishes the artifact https://claude.ai/artifact/2HadKEUvvZa7uE7nHBanfD when figures changed.
