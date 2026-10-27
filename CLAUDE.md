@@ -23,6 +23,15 @@ Scripts need Python 3.9+ (standard library only). Node.js enables the page-scrip
 
 **Error log.** The first `<script data-tracker-diagnostics>` block in `index.html` lists script errors, scripts blocked by a Content-Security-Policy, failed loads and `console.error` calls in a red panel at the bottom of the page, and notes when no KPI cards have been drawn 8 seconds after opening. If the user reports the page or artifact "not working", ask them to press **Copy** on that panel and paste the log. Don't remove it.
 
+**Like-for-like comparisons (owner's rule).** Every change the page shows compares like for like, in OSB and iGaming and for every metric. This covers MoM, YoY, QoQ, WoW, quarterly YoY, and the KPI, table and chart percentages.
+- **What counts:** only units that reported that metric in both periods.
+  - National views: states.
+  - Operator views: each brand within each state ("All states") or each operator (single state).
+  - NY weekly: operators.
+- **What doesn't count:** a unit that hasn't reported yet is left out of both sides. All-zero placeholder rows don't count as reported.
+- **Partial periods:** totals for a month or quarter in which an active unit hasn't reported yet are marked partial, naming what's missing.
+- **In the code:** `lflPairs`, `buildSV`, `notReported` and `detUnits` in `index.html` implement this. Keep it when changing the page.
+
 ## Datasets
 
 | File | Shape | Rows/keys | Fields with roles |

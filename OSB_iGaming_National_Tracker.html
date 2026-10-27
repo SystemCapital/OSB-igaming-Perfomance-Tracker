@@ -485,18 +485,6 @@ function stateMap(v, st, m){
     for(const r of RAW[v][st]) map[r.d]=valOf(r,m);
     return map;
 }
-// aggregate across selected states (or all if none arg) -> Map d->sum (null-aware)
-function aggMap(v, m, states){
-    const out={};
-    for(const st of states){
-        for(const r of RAW[v][st]){
-            const val=valOf(r,m);
-            if(val===null) continue;
-            out[r.d]=(out[r.d]||0)+val;
-        }
-    }
-    return out;
-}
 function applyView(months, map, view){
     return months.map(d=>{
         const cur=map[d];
@@ -632,50 +620,50 @@ function refresh(){
     try{ renderTable(); }catch(e){ console.error('table',e); }
 }
 
-// ----- same-store helpers: a state counts in an aggregate change only if it REPORTED
-// (GGR present and > 0) in BOTH the current and comparison period. States that have not
-// yet reported a month are excluded from that month's YoY / MoM / QoQ on both sides. -----
+// ----- like-for-like helpers. Every comparison (MoM, YoY, QoQ, WoW) adds up only the units
+// that REPORTED the metric in BOTH periods: states here, operators (or a brand's states) in the
+// detailed and NY views. A unit that has not reported a period yet is left out of both sides,
+// whatever the metric. All-zero placeholder rows do not count as reported. -----
 function prevMonthKey(d){ const dt=new Date(d+'-01'); dt.setMonth(dt.getMonth()-1); return fmtKey(dt); }
-function buildSV(v,m){ const o={}; for(const st of statesOf(v)) o[st]=stateMap(v,st,m); return o; }
-function buildGGR(v){ const o={}; for(const st of statesOf(v)) o[st]=stateMap(v,st,'r'); return o; }
-function reported(ggr,st,d){ const x=ggr[st]?ggr[st][d]:undefined; return x!=null && x>0; }
-function ssChange(sv, ggr, ck, pk){
+function isPlaceholder(r){ return !r || ['h','r','p','t','n'].every(k=>!r[k]); }
+// state -> {month: value} holding only the months the state reported this metric
+function buildSV(v,m){ const o={}; for(const st of statesOf(v)){ const mp={}; for(const r of RAW[v][st]){ const x=valOf(r,m); if(x!=null && !isPlaceholder(r)) mp[r.d]=x; } o[st]=mp; } return o; }
+// units: iterable of {period: value} maps; pairs: [[current, comparison], ...]
+function lflPairs(units, pairs){
     let cur=0, prev=0, have=false;
-    for(const st in sv){
-        if(!reported(ggr,st,ck) || !reported(ggr,st,pk)) continue;
-        const c=sv[st][ck], p=sv[st][pk];
+    for(const [ck,pk] of pairs) for(const u of units){
+        const c=u[ck], p=u[pk];
         if(c!=null && p!=null){ cur+=c; prev+=p; have=true; }
     }
     return (have && prev!==0) ? (cur-prev)/prev*100 : null;
 }
-function ssPairs(sv, ggr, pairs){
-    let cur=0, prev=0, have=false;
-    for(const [ck,pk] of pairs){
-        for(const st in sv){
-            if(!reported(ggr,st,ck) || !reported(ggr,st,pk)) continue;
-            const c=sv[st][ck], p=sv[st][pk];
-            if(c!=null && p!=null){ cur+=c; prev+=p; have=true; }
-        }
-    }
-    return (have && prev!==0) ? (cur-prev)/prev*100 : null;
-}
+function ssChange(sv, ck, pk){ return lflPairs(Object.values(sv), [[ck,pk]]); }
+function ssPairs(sv, pairs){ return lflPairs(Object.values(sv), pairs); }
+function svTotal(sv, d){ let t=0, has=false; for(const st in sv){ const x=sv[st][d]; if(x!=null){ t+=x; has=true; } } return has?t:null; }
+// units that reported the metric in the 12 months before d but have not (yet) reported d
+function notReported(units, d){ const lo=prevYearMonth(d);
+    return Object.keys(units).filter(k=>units[k][d]==null && Object.keys(units[k]).some(x=>x<d && x>=lo)).sort(); }
+function missNote(miss, kind){ if(!miss.length) return ''; const names=miss.length>10?miss.slice(0,10).join(', ')+' +'+(miss.length-10)+' more':miss.join(', ');
+    return miss.length+' '+kind+(miss.length>1?'s':'')+' not yet reported ('+names+')'; }
 function renderKPIs(){
     const v=S.vertical, all=statesOf(v);
     const months=allMonths(v); const last=months[months.length-1];
     const prevM=prevMonthKey(last), prevY=prevYearMonth(last);
-    const ggr=buildGGR(v);
     const grid=document.getElementById('kpiGrid'); grid.innerHTML='';
     const order=[['h','Handle'],['r','GGR'],['n','NGR'],['p','Promos'],['t','Tax']];
     for(const [mk,label] of order){
         const sv=buildSV(v,mk);
-        const cur=aggMap(v,mk,all)[last];
-        const mom=ssChange(sv,ggr,last,prevM);
-        const yoy=ssChange(sv,ggr,last,prevY);
+        const cur=svTotal(sv,last);
+        const mom=ssChange(sv,last,prevM);
+        const yoy=ssChange(sv,last,prevY);
+        const nRep=Object.keys(sv).filter(st=>sv[st][last]!=null).length, miss=notReported(sv,last);
         const card=document.createElement('div'); card.className='kpi-card';
+        if(miss.length) card.title=label+' for '+fmtMonthLabel(last)+' excludes '+missNote(miss,'state')+'. % changes compare the same states in both periods.';
         card.innerHTML='<div class="kpi-label">'+label+' &middot; '+fmtMonthLabel(last)+'</div>'+
             '<div class="kpi-value">'+fmtMoney(cur)+'</div>'+
             '<div class="kpi-change '+(yoy>=0?'positive':'negative')+'">'+fmtPct(yoy)+' YoY</div>'+
-            '<div class="kpi-sub">'+fmtPct(mom)+' MoM &middot; same-store</div>';
+            '<div class="kpi-sub">'+fmtPct(mom)+' MoM &middot; like-for-like</div>'+
+            (miss.length?'<div class="kpi-sub">'+nRep+' of '+(nRep+miss.length)+' states reported</div>':'');
         grid.appendChild(card);
     }
     // states count card
@@ -714,33 +702,33 @@ function ngrNote(){
     return c<all.length ? ' · NGR uses promos-reporting states only ('+c+' of '+all.length+')' : '';
 }
 function renderAggChart(){
-    const v=S.vertical, all=statesOf(v);
+    const v=S.vertical;
     let months=windowMonths(allMonths(v));
-    let data;
-    if(S.view==='raw'){
-        const am=aggMap(v,S.metric,all);
-        data=months.map(d=>am[d]==null?null:am[d]);
-    } else {
-        const sv=buildSV(v,S.metric), ggr=buildGGR(v);
-        data=months.map(d=>ssChange(sv,ggr,d, S.view==='mom'?prevMonthKey(d):prevYearMonth(d)));
-    }
+    const sv=buildSV(v,S.metric);
+    const data=S.view==='raw' ? months.map(d=>svTotal(sv,d))
+        : months.map(d=>ssChange(sv,d, S.view==='mom'?prevMonthKey(d):prevYearMonth(d)));
+    const miss=months.map(d=>notReported(sv,d));
     const pts=months.map((d,i)=>({x:d+'-01', y:data[i]}));
+    const kind=v==='osb'?'OSB':'iGaming';
     document.getElementById('aggTitle').textContent='National Aggregate — '+METRICS[S.metric];
-    document.getElementById('aggSub').textContent=(S.view==='raw'?'Sum across all '+all.length+' '+(v==='osb'?'OSB':'iGaming')+' states':viewLabel()+' · same-store (states reporting both periods)')+(S.metric==='h'&&v==='igaming'?' · excl. NJ & MI (handle not reported)':'')+ngrNote();
+    document.getElementById('aggSub').textContent=(S.view==='raw'?'Sum across the '+kind+' states that have reported each month · hollow point = a state has not reported yet':viewLabel()+' · like-for-like (states reporting both periods)')+(S.metric==='h'&&v==='igaming'?' · excl. NJ & MI (handle not reported)':'')+ngrNote();
+    const opts=baseChartOpts();
+    opts.plugins.tooltip.callbacks.afterLabel=ctx=>{ const m=miss[ctx.dataIndex]; return m.length?(S.view==='raw'?'Partial: ':'Excluded: ')+missNote(m,'state'):''; };
     if(aggChart) aggChart.destroy();
     aggChart=new Chart(document.getElementById('aggChart'),{
         type:'line',
-        data:{ datasets:[{ label:'All states', data:pts, borderColor:v==='igaming'?'#8b5cf6':'#3b82f6', backgroundColor:(v==='igaming'?'rgba(139,92,246,0.15)':'rgba(59,130,246,0.15)'), fill:true, tension:0.25, pointRadius:0, borderWidth:2 }] },
-        options:baseChartOpts()
+        data:{ datasets:[{ label:'All states', data:pts, borderColor:v==='igaming'?'#8b5cf6':'#3b82f6', backgroundColor:(v==='igaming'?'rgba(139,92,246,0.15)':'rgba(59,130,246,0.15)'), fill:true, tension:0.25, borderWidth:2,
+            pointRadius:miss.map(m=>m.length?3:0), pointBackgroundColor:'transparent', pointBorderColor:'#f59e0b' }] },
+        options:opts
     });
 }
 function renderStateChart(){
     const v=S.vertical;
     let months=windowMonths(allMonths(v));
-    const ds=[];
+    const ds=[], sv=buildSV(v,S.metric);
     for(const st of statesOf(v)){
         if(!S.active.has(st)) continue;
-        const mp=stateMap(v,st,S.metric);
+        const mp=S.view==='raw'?stateMap(v,st,S.metric):sv[st];
         const data=applyView(months, mp, S.view);
         const pts=months.map((d,i)=>({x:d+'-01', y:data[i]}));
         ds.push({ label:st, data:pts, borderColor:color(st), backgroundColor:color(st), fill:false, tension:0.25, pointRadius:0, borderWidth:2, spanGaps:true });
@@ -756,15 +744,13 @@ function renderTable(){
     const v=S.vertical, all=statesOf(v);
     const months=allMonths(v); const last=months[months.length-1];
     const prevM=prevMonthKey(last), prevY=prevYearMonth(last);
-    const m=S.metric; const ggr=buildGGR(v);
+    const m=S.metric; const sv=buildSV(v,m); const miss=notReported(sv,last);
     const rows=all.map(st=>{
-        const mp=stateMap(v,st,m);
-        const repNow=reported(ggr,st,last), pmOk=reported(ggr,st,prevM), pyOk=reported(ggr,st,prevY);
-        const cur=(repNow && mp[last]!=null)?mp[last]:null;
+        const mp=sv[st], cur=mp[last]!=null?mp[last]:null;
         const pm=mp[prevM], py=mp[prevY];
-        return { st, cur, nr:!repNow, availM:hasMetric(v,st,m),
-            mom:(repNow&&pmOk&&cur!=null&&pm!=null&&pm!==0)?((cur-pm)/pm*100):null,
-            yoy:(repNow&&pyOk&&cur!=null&&py!=null&&py!==0)?((cur-py)/py*100):null };
+        return { st, cur, nr:miss.includes(st), availM:hasMetric(v,st,m),
+            mom:(cur!=null&&pm!=null&&pm!==0)?((cur-pm)/pm*100):null,
+            yoy:(cur!=null&&py!=null&&py!==0)?((cur-py)/py*100):null };
     });
     const totalCur=rows.reduce((a,r)=>a+(r.cur||0),0);
     rows.forEach(r=>{ r.share=(r.cur!=null&&totalCur)?(r.cur/totalCur*100):null; });
@@ -776,7 +762,7 @@ function renderTable(){
         return S.sortDir*(x-y);
     });
     document.getElementById('tableTitle').textContent=METRICS[m]+' by State — '+fmtMonthLabel(last);
-    document.getElementById('tableAsOf').textContent='as of '+fmtMonthLabel(last)+' · n.r. = not yet reported · % = same-store'+ngrNote();
+    document.getElementById('tableAsOf').textContent='as of '+fmtMonthLabel(last)+' · n.r. = not yet reported · % = like-for-like (states reporting both periods)'+ngrNote();
     const cols=[['st','State'],['cur',METRICS[m]],['mom','MoM %'],['yoy','YoY %'],['share','Share']];
     const sortMap={val:'cur'};
     document.getElementById('tableHead').innerHTML='<tr>'+cols.map(c=>{
@@ -792,10 +778,10 @@ function renderTable(){
             '<td class="text-right '+pctCls(r.yoy)+'">'+fmtPct(r.yoy)+'</td>'+
             '<td class="text-right text-muted">'+(r.share==null?'—':r.share.toFixed(1)+'%')+'</td></tr>';
     }).join('');
-    // total (same-store % across states reporting both periods)
-    const sv=buildSV(v,m);
-    const tmom=ssChange(sv,ggr,last,prevM), tyoy=ssChange(sv,ggr,last,prevY);
-    body+='<tr class="total-row"><td>Total ('+all.length+' states)</td>'+
+    // total (like-for-like % across states reporting both periods)
+    const tmom=ssChange(sv,last,prevM), tyoy=ssChange(sv,last,prevY);
+    const nRep=rows.filter(r=>r.cur!=null).length;
+    body+='<tr class="total-row"><td>Total ('+(miss.length?nRep+' of '+(nRep+miss.length)+' states reported':nRep+' states')+')</td>'+
         '<td class="text-right">'+fmtMoney(totalCur)+'</td>'+
         '<td class="text-right '+pctCls(tmom)+'">'+fmtPct(tmom)+'</td>'+
         '<td class="text-right '+pctCls(tyoy)+'">'+fmtPct(tyoy)+'</td>'+
@@ -811,31 +797,33 @@ function prevYearMonth(d){ const dt=new Date(d+'-01'); dt.setFullYear(dt.getFull
 // Like-for-like YoY: only count months in the quarter that have a prior-year counterpart,
 // and compare against those same prior-year months. A partial current quarter (e.g. 2 of 3
 // months) is therefore compared only against the same 2 months a year earlier.
-function qtrYoY(sv, ggr, qm, k){
+function qtrYoY(sv, qm, k){
     const months=qm[k]||[];
-    return ssPairs(sv, ggr, months.map(d=>[d, prevYearMonth(d)]));
+    return ssPairs(sv, months.map(d=>[d, prevYearMonth(d)]));
 }
 // Like-for-like QoQ: a partial current quarter is compared only against the same number of
 // leading months in the prior quarter.
-function qtrQoQ(sv, ggr, qm, keys, idx){
+function qtrQoQ(sv, qm, keys, idx){
     if(idx===0) return null;
     const cm=qm[keys[idx]], pm=qm[keys[idx-1]]; const n=cm.length;
     if(pm.length<n) return null;
-    return ssPairs(sv, ggr, cm.map((d,i)=>[d, pm[i]]));
+    return ssPairs(sv, cm.map((d,i)=>[d, pm[i]]));
 }
 function renderQuarterly(){
     const v=S.vertical, m=document.getElementById('qtrMetric').value;
-    const all=statesOf(v);
-    const am=aggMap(v,m,all);              // d -> aggregate sum (for period totals / line)
-    const sv=buildSV(v,m), ggr=buildGGR(v); // for same-store comparisons
-    const qm={}, q={};                      // qkey -> [months] ; qkey -> total
-    for(const d in am){ const k=getQtr(d); (qm[k]=qm[k]||[]).push(d); q[k]=(q[k]||0)+am[d]; }
+    const sv=buildSV(v,m);                   // state -> reported months (period totals and like-for-like comparisons)
+    const qm={}, q={};                      // qkey -> [months] ; qkey -> total of the states that reported
+    for(const d of allMonths(v)){ const t=svTotal(sv,d); if(t==null) continue; const k=getQtr(d); (qm[k]=qm[k]||[]).push(d); q[k]=(q[k]||0)+t; }
     Object.values(qm).forEach(a=>a.sort());
     let keys=Object.keys(q).sort();
     if(!keys.length) return;
+    // partial = fewer than 3 months, or a state has not reported one of its months yet
+    const qMiss={}; for(const k of keys){ const s=new Set(); for(const d of qm[k]) notReported(sv,d).forEach(x=>s.add(x)); qMiss[k]=[...s].sort(); }
+    const isPartial=k=>qm[k].length<3||qMiss[k].length>0;
+    const partLabel=k=>(qm[k].length<3?qm[k].length+' of 3 mo':'')+(qm[k].length<3&&qMiss[k].length?'; ':'')+(qMiss[k].length?missNote(qMiss[k],'state'):'');
     const lastKey=keys[keys.length-1];
-    const partialLast=(qm[lastKey]||[]).length<3;
-    const partialNote=partialLast?' · '+lastKey+' partial ('+qm[lastKey].length+' of 3 mo) — compared like-for-like':'';
+    const partialLast=isPartial(lastKey);
+    const partialNote=partialLast?' · '+lastKey+' partial ('+partLabel(lastKey)+') — QoQ & YoY compared like-for-like':'';
     document.getElementById('qtrLineSub').textContent=METRICS[m]+' · calendar-quarter totals'+partialNote+(m==='h'&&v==='igaming'?' · excl. NJ & MI':'');
     // line chart (actual period totals)
     const linePts=keys.map(k=>({x:qtrToDate(k), y:q[k]}));
@@ -843,31 +831,30 @@ function renderQuarterly(){
     qtrLineChart=new Chart(document.getElementById('qtrLineChart'),{
         type:'line',
         data:{ datasets:[{ label:METRICS[m], data:linePts, borderColor:v==='igaming'?'#8b5cf6':'#3b82f6', backgroundColor:(v==='igaming'?'rgba(139,92,246,0.15)':'rgba(59,130,246,0.15)'), fill:true, tension:0.25, pointRadius:2, borderWidth:2 }] },
-        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>{const k=keys[c.dataIndex]; const part=qm[k].length<3?' (partial, '+qm[k].length+'mo)':''; return METRICS[m]+': '+fmtMoney(c.parsed.y)+part;}}}},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>{const k=keys[c.dataIndex]; const part=isPartial(k)?' (partial: '+partLabel(k)+')':''; return METRICS[m]+': '+fmtMoney(c.parsed.y)+part;}}}},
             scales:{ x:{type:'time',time:{unit:'year'},ticks:{color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}}, y:{ticks:{callback:val=>fmtMoney(val),color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}} } }
     });
     // yoy bar (like-for-like)
-    const yoy=keys.map(k=>qtrYoY(sv,ggr,qm,k));
-    const barLabels=keys.map(k=>qm[k].length<3?k+'*':k);
+    const yoy=keys.map(k=>qtrYoY(sv,qm,k));
+    const barLabels=keys.map(k=>isPartial(k)?k+'*':k);
     if(qtrBarChart) qtrBarChart.destroy();
     qtrBarChart=new Chart(document.getElementById('qtrBarChart'),{
         type:'bar',
         data:{ labels:barLabels, datasets:[{ label:'YoY %', data:yoy, backgroundColor:yoy.map(x=>x==null?'#475569':(x>=0?'#22c55e':'#ef4444')) }] },
         options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{
-            title:c=>{const k=keys[c[0].dataIndex]; return k+(qm[k].length<3?' (partial '+qm[k].length+'mo, like-for-like)':'');},
+            title:c=>{const k=keys[c[0].dataIndex]; return k+(isPartial(k)?' (partial: '+partLabel(k)+'; like-for-like)':'');},
             label:c=>'YoY: '+(c.parsed.y==null?'—':fmtPct(c.parsed.y))}}},
             scales:{ x:{ticks:{color:'#94a3b8',maxRotation:60,minRotation:45,autoSkip:true,maxTicksLimit:16},grid:{display:false}}, y:{ticks:{callback:val=>val.toFixed(0)+'%',color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}} } }
     });
     // table: rows per quarter recent first
-    document.getElementById('qtrTableTitle').innerHTML=METRICS[m]+' — Quarterly Totals'+(partialLast?' <span class="text-muted" style="font-weight:400;font-size:12px;">(* partial quarter — QoQ &amp; YoY compared like-for-like vs same months)</span>':'');
+    document.getElementById('qtrTableTitle').innerHTML=METRICS[m]+' — Quarterly Totals'+(keys.some(isPartial)?' <span class="text-muted" style="font-weight:400;font-size:12px;">(* partial quarter: fewer than 3 months or a state not yet reported — QoQ &amp; YoY compare the same states and months)</span>':'');
     document.getElementById('qtrTableHead').innerHTML='<tr><th>Quarter</th><th class="text-right">'+METRICS[m]+'</th><th class="text-right">QoQ %</th><th class="text-right">YoY %</th></tr>';
     const rev=[...keys].reverse();
     document.getElementById('qtrTableBody').innerHTML=rev.map(k=>{
         const idx=keys.indexOf(k);
-        const isPartial=qm[k].length<3;
-        const qoq=qtrQoQ(sv,ggr,qm,keys,idx);
-        const yy=qtrYoY(sv,ggr,qm,k);
-        const label=k+(isPartial?' <span class="text-muted">*</span>':'');
+        const qoq=qtrQoQ(sv,qm,keys,idx);
+        const yy=qtrYoY(sv,qm,k);
+        const label=k+(isPartial(k)?' <span class="text-muted" title="'+partLabel(k)+'">*</span>':'');
         return '<tr><td>'+label+'</td><td class="text-right">'+fmtMoney(q[k])+'</td>'+
             '<td class="text-right '+pctCls(qoq)+'">'+fmtPct(qoq)+'</td>'+
             '<td class="text-right '+pctCls(yy)+'">'+fmtPct(yy)+'</td></tr>';
@@ -925,6 +912,7 @@ function crossBrandData(m){
   if(_cb[m]) return _cb[m];
   const out={};
   for(const st of crossStatesFor(m)) for(const op in DETAILED.states[st]) for(const mo in DETAILED.states[st][op]){
+    if(isPlaceholder(DETAILED.states[st][op][mo])) continue;
     const v=opVal(st,op,mo,m); if(v==null) continue;
     const b=brandOf(op);
     (out[b]=out[b]||{}); (out[b][st]=out[b][st]||{}); out[b][st][mo]=(out[b][st][mo]||0)+v;
@@ -945,12 +933,15 @@ function entVal(ent, mo){
 function entTotal(ent){ return fullMonths().reduce((a,mo)=>a+(entVal(ent,mo)||0),0); }
 function rankedEntities(){ return detEntities().map(e=>({e,tot:entTotal(e)})).sort((a,b)=>b.tot-a.tot); }
 function detWindowMonths(months){ if(Sd.window==='all') return months; const n=parseInt(Sd.window); return months.slice(-n); }
-function applyDetView(months, vals){
-  if(Sd.view==='raw') return vals.slice();
-  return months.map((mo,i)=>{ const cur=vals[i]; if(cur==null) return null;
-    const pk=Sd.view==='mom'?prevMonthKey(mo):prevYearMonth(mo); const pi=months.indexOf(pk);
-    const prev=pi>=0?vals[pi]:null; if(prev==null||prev===0) return null; return (cur-prev)/prev*100; });
-}
+// like-for-like units behind an entity ({month: value} maps): the operator itself in the state
+// view, or one map per state the brand reports in for the all-states view
+function detOpMap(state, op, m){ const o={}; const cells=DETAILED.states[state][op]; for(const mo in cells){ if(isPlaceholder(cells[mo])) continue; const v=opVal(state,op,mo,m); if(v!=null) o[mo]=v; } return o; }
+function detUnits(ent){ if(Sd.mode==='cross'){ const cb=crossBrandData(Sd.metric); return cb[ent]?Object.values(cb[ent]):[]; } return [detOpMap(Sd.state, ent, Sd.metric)]; }
+function detUnitsOf(ents){ return ents.flatMap(detUnits); }
+// all-states view: state -> {month: total}, to name the states that have not reported a month yet
+function detStateTotals(){ const o={}; if(Sd.mode!=='cross') return o; const cb=crossBrandData(Sd.metric);
+  for(const b in cb) for(const st in cb[b]) for(const mo in cb[b][st]){ (o[st]=o[st]||{}); o[st][mo]=(o[st][mo]||0)+cb[b][st][mo]; } return o; }
+function detMiss(mo){ return Sd.mode==='cross'?notReported(detStateTotals(), mo):[]; }
 function detLabel(){ return DET_METRICS[Sd.metric]; }
 function viewSuffix(){ return Sd.view==='raw'?'':(Sd.view==='mom'?' — MoM %':' — YoY %'); }
 
@@ -1019,21 +1010,26 @@ function renderDetOpToggles(){
   else note.textContent=DETAILED.meta[Sd.state].source;
 }
 
-function detSeries(valFn){ const fm=fullMonths(); const vals=fm.map(valFn); const viewed=applyDetView(fm,vals); const disp=detWindowMonths(fm); return disp.map(mo=>({x:mo+'-01', y:viewed[fm.indexOf(mo)]})); }
+function detSeries(valFn, unitsFn){ const disp=detWindowMonths(fullMonths());
+  if(Sd.view==='raw') return disp.map(mo=>({x:mo+'-01', y:valFn(mo)}));
+  const units=unitsFn();
+  return disp.map(mo=>({x:mo+'-01', y:lflPairs(units, [[mo, Sd.view==='mom'?prevMonthKey(mo):prevYearMonth(mo)]])})); }
 function detYaxis(){ return Sd.view==='raw'?{ticks:{callback:v=>fmtMoney(v),color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}}:{ticks:{callback:v=>v.toFixed(0)+'%',color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}}; }
 function detOpts(){ return { responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, plugins:{ legend:{labels:{color:'#94a3b8',boxWidth:12,font:{size:10}}}, tooltip:{callbacks:{label:c=>c.dataset.label+': '+(Sd.view==='raw'?fmtMoney(c.parsed.y):(c.parsed.y==null?'—':fmtPct(c.parsed.y)))}}}, scales:{ x:{type:'time',time:{unit:'year'},ticks:{color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}}, y:detYaxis() } }; }
 
 function renderDetAggChart(){
   const accent=Sd.mode==='cross'?'#8b5cf6':'#3b82f6';
-  const pts=detSeries(mo=>{ let v=0,has=false; for(const e of detEntities()){ const x=entVal(e,mo); if(x!=null){v+=x;has=true;} } return has?v:null; });
+  const pts=detSeries(mo=>{ let v=0,has=false; for(const e of detEntities()){ const x=entVal(e,mo); if(x!=null){v+=x;has=true;} } return has?v:null; }, ()=>detUnitsOf(detEntities()));
+  const miss=pts.map(pt=>detMiss(pt.x.slice(0,7)));
   document.getElementById('detAggTitle').textContent=(Sd.mode==='cross'?'All states total — ':(Sd.state+' total — '))+detLabel()+viewSuffix();
-  document.getElementById('detAggSub').textContent=Sd.view==='raw'?'Sum of all operators':detLabel()+' growth';
+  document.getElementById('detAggSub').textContent=(Sd.view==='raw'?'Sum of all operators':detLabel()+' growth · like-for-like ('+(Sd.mode==='cross'?'brand × state':'operators')+' reporting both periods)')+(Sd.mode==='cross'?' · hollow point = a state has not reported yet':'');
+  const opts=detOpts(); opts.plugins.tooltip.callbacks.afterLabel=c=>{ const m=miss[c.dataIndex]; return m.length?(Sd.view==='raw'?'Partial: ':'Excluded: ')+missNote(m,'state'):''; };
   if(detAggChart) detAggChart.destroy();
-  detAggChart=new Chart(document.getElementById('detAggChart'),{type:'line',data:{datasets:[{label:'Total',data:pts,borderColor:accent,backgroundColor:accent+'22',fill:true,tension:0.25,pointRadius:0,borderWidth:2,spanGaps:true}]},options:detOpts()});
+  detAggChart=new Chart(document.getElementById('detAggChart'),{type:'line',data:{datasets:[{label:'Total',data:pts,borderColor:accent,backgroundColor:accent+'22',fill:true,tension:0.25,borderWidth:2,spanGaps:true,pointRadius:miss.map(m=>m.length?3:0),pointBackgroundColor:'transparent',pointBorderColor:'#f59e0b'}]},options:opts});
 }
 function renderDetByChart(){
   const ds=[];
-  for(const {e} of rankedEntities()){ if(!Sd.active.has(e)) continue; ds.push({label:e,data:detSeries(mo=>entVal(e,mo)),borderColor:detColor(e),backgroundColor:detColor(e),fill:false,tension:0.25,pointRadius:0,borderWidth:2,spanGaps:true}); }
+  for(const {e} of rankedEntities()){ if(!Sd.active.has(e)) continue; ds.push({label:e,data:detSeries(mo=>entVal(e,mo),()=>detUnits(e)),borderColor:detColor(e),backgroundColor:detColor(e),fill:false,tension:0.25,pointRadius:0,borderWidth:2,spanGaps:true}); }
   document.getElementById('detChartTitle').textContent=(Sd.mode==='cross'?'By operator brand — ':'By operator — ')+detLabel()+viewSuffix();
   document.getElementById('detChartSub').textContent=ds.length?ds.length+(Sd.mode==='cross'?' brand':' operator')+(ds.length>1?'s':'')+' shown':'Select operators below to plot';
   if(detChart) detChart.destroy();
@@ -1044,10 +1040,11 @@ function renderDetTable(){
   const fm=fullMonths(); const last=selMonth(); const pm=prevMonthKey(last), py=prevYearMonth(last);
   const ents=rankedEntities();
   const grandLast=ents.reduce((a,x)=>a+(entVal(x.e,last)||0),0);
-  const rows=ents.map(({e,tot})=>{ const cur=entVal(e,last),vpm=entVal(e,pm),vpy=entVal(e,py);
-    return {e,cur,tot,mom:(vpm&&cur!=null)?((cur-vpm)/vpm*100):null,yoy:(vpy&&cur!=null)?((cur-vpy)/vpy*100):null,share:(cur!=null&&grandLast)?cur/grandLast*100:null}; });
+  const rows=ents.map(({e,tot})=>{ const cur=entVal(e,last), u=detUnits(e);
+    return {e,cur,tot,mom:lflPairs(u,[[last,pm]]),yoy:lflPairs(u,[[last,py]]),share:(cur!=null&&grandLast)?cur/grandLast*100:null}; });
+  const miss=detMiss(last);
   document.getElementById('detTableTitle').textContent=(Sd.mode==='cross'?'Operator brands — ':(Sd.state+' operators — '))+detLabel()+' ('+fmtMonthLabel(last)+')';
-  document.getElementById('detTableNote').textContent=Sd.mode==='cross'?(detLabel()+' · aggregated across '+crossStatesFor(Sd.metric).length+' of '+detStates().length+' states'):DETAILED.meta[Sd.state].source;
+  document.getElementById('detTableNote').textContent=(Sd.mode==='cross'?(detLabel()+' · aggregated across '+crossStatesFor(Sd.metric).length+' of '+detStates().length+' states'):DETAILED.meta[Sd.state].source)+' · MoM & YoY like-for-like'+(miss.length?' · '+fmtMonthLabel(last)+' excludes '+missNote(miss,'state')+', from both sides of every comparison':'');
   document.getElementById('detTableHead').innerHTML='<tr><th>'+(Sd.mode==='cross'?'Operator brand':'Operator')+'</th><th class="text-right">'+detLabel()+'</th><th class="text-right">MoM %</th><th class="text-right">YoY %</th><th class="text-right">Share</th><th class="text-right">Period total</th></tr>';
   document.getElementById('detTableBody').innerHTML=rows.map(r=>'<tr><td><span class="swatch" style="background:'+detColor(r.e)+'"></span>'+r.e+'</td><td class="text-right">'+fmtMoney(r.cur)+'</td><td class="text-right '+pctCls(r.mom)+'">'+fmtPct(r.mom)+'</td><td class="text-right '+pctCls(r.yoy)+'">'+fmtPct(r.yoy)+'</td><td class="text-right text-muted">'+(r.share==null?'—':r.share.toFixed(1)+'%')+'</td><td class="text-right text-muted">'+fmtMoney(r.tot)+'</td></tr>').join('');
 }
@@ -1057,8 +1054,9 @@ function renderDetKpis(){
   const ents=rankedEntities().filter(x=>x.tot>0);
   const lastTot=ents.reduce((a,x)=>a+(entVal(x.e,last)||0),0);
   const periodTot=ents.reduce((a,x)=>a+x.tot,0);
+  const missK=detMiss(last), nStates=Object.keys(detStateTotals()).length;
   const cards=[
-    [detLabel()+String.fromCharCode(160)+'· '+fmtMonthLabel(last), fmtMoney(lastTot), Sd.mode===String.fromCharCode(99,114,111,115,115)?'all states':Sd.state],
+    [detLabel()+String.fromCharCode(160)+'· '+fmtMonthLabel(last), fmtMoney(lastTot), Sd.mode==='cross'?(missK.length?(nStates-missK.length)+' of '+nStates+' states reported':'all states'):Sd.state],
     ['Period '+detLabel(), fmtMoney(periodTot), fm.length+' months'],
     [Sd.mode==='cross'?'Brands':'Operators', String(ents.length), Sd.mode==='cross'?('across '+crossStatesFor(Sd.metric).length+' of '+detStates().length+' states'):DETAILED.meta[Sd.state].metrics.map(m=>DET_METRICS[m]).join(', ')],
     ['Top'+(Sd.mode==='cross'?' brand':' operator'), ents.length?ents[0].e.split(' (')[0].split(' / ')[0]:'—', ents.length?fmtMoney(ents[0].tot):'']
@@ -1067,14 +1065,19 @@ function renderDetKpis(){
 }
 function detQuarters(){ const fm=fullMonths(); const qm={}; for(const mo of fm){ const k=getQtr(mo); (qm[k]=qm[k]||[]).push(mo); } const keys=Object.keys(qm).sort(); keys.forEach(k=>qm[k].sort()); return {keys,qm}; }
 function detQVal(ent,qkey,qm){ let v=0,has=false; for(const mo of qm[qkey]){ const x=entVal(ent,mo); if(x!=null){v+=x;has=true;} } return has?v:null; }
-function detQYoYEnt(ent,qkey,qm){ let cur=0,prev=0,have=false; for(const mo of qm[qkey]){ const pm=prevYearMonth(mo); const c=entVal(ent,mo),p=entVal(ent,pm); if(c!=null&&p!=null){cur+=c;prev+=p;have=true;} } return (have&&prev!==0)?(cur-prev)/prev*100:null; }
-function detQYoYSel(qkey,qm){ let cur=0,prev=0,have=false; const ents=Sd.active.size?[...Sd.active]:detEntities(); for(const mo of qm[qkey]){ const pm=prevYearMonth(mo); for(const e of ents){ const c=entVal(e,mo),p=entVal(e,pm); if(c!=null&&p!=null){cur+=c;prev+=p;have=true;} } } return (have&&prev!==0)?(cur-prev)/prev*100:null; }
-function detQYoYTotal(qkey,qm){ let cur=0,prev=0,have=false; for(const mo of qm[qkey]){ const pm=prevYearMonth(mo); for(const e of detEntities()){ const c=entVal(e,mo),p=entVal(e,pm); if(c!=null&&p!=null){cur+=c;prev+=p;have=true;} } } return (have&&prev!==0)?(cur-prev)/prev*100:null; }
+function detQPairs(qkey,qm){ return qm[qkey].map(mo=>[mo,prevYearMonth(mo)]); }
+function detQYoYEnt(ent,qkey,qm){ return lflPairs(detUnits(ent), detQPairs(qkey,qm)); }
+function detQYoYSel(qkey,qm){ return lflPairs(detUnitsOf(Sd.active.size?[...Sd.active]:detEntities()), detQPairs(qkey,qm)); }
+function detQYoYTotal(qkey,qm){ return lflPairs(detUnitsOf(detEntities()), detQPairs(qkey,qm)); }
 function renderDetQuarterly(){
   const {keys,qm}=detQuarters();
   if(!keys.length) return;
-  const lastK=keys[keys.length-1]; const partial=qm[lastK].length<3;
-  document.getElementById('detQSub').textContent='Calendar-quarter totals · '+detLabel()+(partial?' · '+lastK+' partial ('+qm[lastK].length+'/3 mo) — YoY compared like-for-like':'')+(Sd.mode==='cross'?' · aggregated across states':'');
+  // partial = fewer than 3 months, or (all-states view) a state has not reported one of its months yet
+  const st=detStateTotals(), qMiss={}; for(const k of keys){ const s=new Set(); if(Sd.mode==='cross') for(const mo of qm[k]) notReported(st,mo).forEach(x=>s.add(x)); qMiss[k]=[...s].sort(); }
+  const isPartial=k=>qm[k].length<3||qMiss[k].length>0;
+  const partLabel=k=>(qm[k].length<3?qm[k].length+'/3 mo':'')+(qm[k].length<3&&qMiss[k].length?'; ':'')+(qMiss[k].length?missNote(qMiss[k],'state'):'');
+  const lastK=keys[keys.length-1]; const partial=isPartial(lastK);
+  document.getElementById('detQSub').textContent='Calendar-quarter totals · '+detLabel()+(partial?' · '+lastK+' partial ('+partLabel(lastK)+') — YoY compared like-for-like':'')+(Sd.mode==='cross'?' · aggregated across states':'');
   const ents=rankedEntities();
   // trend: line per active operator
   const ds=[];
@@ -1088,14 +1091,14 @@ function renderDetQuarterly(){
   const _nsel=Sd.active.size, _ntot=rankedEntities().length, _w=(Sd.mode==="cross"?"brand":"operator");
   document.getElementById("detQYoYTitle").textContent="YoY growth — "+(_nsel===0?("all "+_ntot+" "+_w+"s"):(_nsel===1?[...Sd.active][0].split(" (")[0].split(" / ")[0]:(_nsel+" selected "+_w+"s")));
   document.getElementById("detQYoYSub").textContent="like-for-like vs same quarter prior year"+((_nsel>0&&_nsel<_ntot)?" · selected only":((_nsel===0)?" · all operators":""));
-  const labels=keys.map(k=>qm[k].length<3?k+'*':k);
+  const labels=keys.map(k=>isPartial(k)?k+'*':k);
   if(detQYoY) detQYoY.destroy();
-  detQYoY=new Chart(document.getElementById('detQYoY'),{type:'bar',data:{labels,datasets:[{label:'YoY %',data:yoy,backgroundColor:yoy.map(x=>x==null?'#475569':(x>=0?'#22c55e':'#ef4444'))}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>{const k=keys[c[0].dataIndex];return k+(qm[k].length<3?' (partial '+qm[k].length+'mo, like-for-like)':'');},label:c=>'YoY: '+(c.parsed.y==null?'—':fmtPct(c.parsed.y))}}},scales:{x:{ticks:{color:'#94a3b8',maxRotation:60,minRotation:45,autoSkip:true,maxTicksLimit:14},grid:{display:false}},y:{ticks:{callback:v=>v.toFixed(0)+'%',color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}}}}});
+  detQYoY=new Chart(document.getElementById('detQYoY'),{type:'bar',data:{labels,datasets:[{label:'YoY %',data:yoy,backgroundColor:yoy.map(x=>x==null?'#475569':(x>=0?'#22c55e':'#ef4444'))}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>{const k=keys[c[0].dataIndex];return k+(isPartial(k)?' (partial: '+partLabel(k)+'; like-for-like)':'');},label:c=>'YoY: '+(c.parsed.y==null?'—':fmtPct(c.parsed.y))}}},scales:{x:{ticks:{color:'#94a3b8',maxRotation:60,minRotation:45,autoSkip:true,maxTicksLimit:14},grid:{display:false}},y:{ticks:{callback:v=>v.toFixed(0)+'%',color:'#94a3b8'},grid:{color:'rgba(51,65,85,0.4)'}}}}});
   // table: operators x last 8 quarters + latest YoY (like-for-like) + period total
   const showK=keys.slice(-8);
   document.getElementById('detQTableTitle').textContent=(Sd.mode==='cross'?'Quarterly '+detLabel()+' by brand':'Quarterly '+detLabel()+' by operator');
-  document.getElementById('detQTableNote').textContent='* partial quarter \u00b7 % beneath each figure = YoY vs same quarter prior year (like-for-like)';
-  document.getElementById('detQTableHead').innerHTML='<tr><th>'+(Sd.mode==='cross'?'Brand':'Operator')+'</th>'+showK.map(k=>'<th class="text-right">'+k+(qm[k].length<3?' *':'')+'</th>').join('')+'</tr>';
+  document.getElementById('detQTableNote').textContent='* partial quarter (fewer than 3 months, or a state not yet reported) \u00b7 % beneath each figure = YoY vs same quarter prior year, like-for-like';
+  document.getElementById('detQTableHead').innerHTML='<tr><th>'+(Sd.mode==='cross'?'Brand':'Operator')+'</th>'+showK.map(k=>'<th class="text-right"'+(isPartial(k)?' title="Partial: '+partLabel(k)+'"':'')+'>'+k+(isPartial(k)?' *':'')+'</th>').join('')+'</tr>';
   const qcell=(val,yoy)=>'<td class="text-right">'+fmtMoney(val)+'<div style="font-size:10px;font-weight:600;margin-top:2px;" class="'+pctCls(yoy)+'">'+fmtPct(yoy)+'</div></td>';
   let body=ents.map(({e})=>{ const cells=showK.map(k=>qcell(detQVal(e,k,qm),detQYoYEnt(e,k,qm))).join(''); return '<tr><td><span class="swatch" style="background:'+detColor(e)+'"></span>'+e+'</td>'+cells+'</tr>'; }).join('');
   const totRow=showK.map(k=>{ let v=0; for(const {e} of ents)v+=(detQVal(e,k,qm)||0); return qcell(v,detQYoYTotal(k,qm)); }).join('');
@@ -1118,6 +1121,17 @@ function nwOps(){return Object.keys(DETAILED_NYW.ops);}
 function nwWeeksAll(){return DETAILED_NYW.weeks;}
 function nwVal(op,wk){const r=DETAILED_NYW.ops[op][wk];if(!r)return null;if(Nw.metric==='h')return r.h;if(Nw.metric==='r')return r.r;if(Nw.metric==='hold')return (r.h&&r.r!=null)?(r.r/r.h*100):null;return null;}
 function nwAggVal(wk){const sel=Nw.active.size?[...Nw.active]:nwOps();let sh=0,sr=0,ok=false;for(const e of sel){const r=DETAILED_NYW.ops[e][wk];if(!r)continue;if(r.h!=null){sh+=r.h;ok=true;}if(r.r!=null){sr+=r.r;ok=true;}}if(!ok)return null;if(Nw.metric==='h')return sh;if(Nw.metric==='r')return sr;return sh?sr/sh*100:null;}
+// like-for-like change in the selected NY total: only operators with a (non-zero) week in both weeks
+function nwLflChange(wk,pwk){const sel=Nw.active.size?[...Nw.active]:nwOps();let ch=0,cr=0,ph=0,pr=0,have=false;
+  for(const e of sel){const c=DETAILED_NYW.ops[e][wk],p=DETAILED_NYW.ops[e][pwk];if(isPlaceholder(c)||isPlaceholder(p))continue;
+    if(Nw.metric==='hold'&&(c.h==null||c.r==null||p.h==null||p.r==null))continue;
+    if(c.h!=null&&p.h!=null){ch+=c.h;ph+=p.h;have=true;}if(c.r!=null&&p.r!=null){cr+=c.r;pr+=p.r;have=true;}}
+  if(!have)return null;
+  if(Nw.metric==='h')return ph?(ch-ph)/ph*100:null;
+  if(Nw.metric==='r')return pr?(cr-pr)/pr*100:null;
+  const cu=ch?cr/ch*100:null,pv=ph?pr/ph*100:null;return (cu!=null&&pv)?(cu-pv)/pv*100:null;}
+function nwAggSeries(){if(Nw.view==='raw')return nwSeries(nwAggVal);const wk=nwWeeksAll(),back=Nw.view==='wow'?1:52;
+  return nwWindowWeeks(wk).map(w=>{const i=wk.indexOf(w);return {x:w,y:i>=back?nwLflChange(w,wk[i-back]):null};});}
 function nwSelWeek(){const w=nwWeeksAll();return (Nw.week&&w.includes(Nw.week))?Nw.week:w[w.length-1];}
 function nwWindowWeeks(weeks){if(Nw.window==='all')return weeks;const n=parseInt(Nw.window);return weeks.slice(-n);}
 function applyNwView(vals){if(Nw.view==='raw')return vals.slice();const back=Nw.view==='wow'?1:52;return vals.map((v,i)=>{if(v==null)return null;const p=vals[i-back];if(p==null||p===0)return null;return (v-p)/p*100;});}
@@ -1147,9 +1161,9 @@ function setNwView(v){Nw.view=v;renderNyw();}
 function setNwWindow(v){Nw.window=v;renderNyw();}
 function setNwWeek(v){Nw.week=v;renderNwKpis();renderNwTable();renderNwWeek();}
 function nwSelect(mode){const ents=nwRanked();if(mode==='all')Nw.active=new Set(ents.map(x=>x.e));else if(mode==='none')Nw.active=new Set();else Nw.active=new Set(ents.slice(0,5).map(x=>x.e));renderNyw();}
-function renderNwAggChart(){const accent='#f59e0b';const pts=nwSeries(nwAggVal);
+function renderNwAggChart(){const accent='#f59e0b';const pts=nwAggSeries();
   document.getElementById('nwAggTitle').textContent='NY total (selected) — '+nwLabel()+nwViewSuffix();
-  document.getElementById('nwAggSub').textContent=Nw.view==='raw'?(Nw.metric==='hold'?'Blended hold across selected operators':'Sum of selected operators'):nwLabel()+' growth';
+  document.getElementById('nwAggSub').textContent=Nw.view==='raw'?(Nw.metric==='hold'?'Blended hold across selected operators':'Sum of selected operators'):nwLabel()+' growth · like-for-like (operators reporting both weeks)';
   if(nwAggChart)nwAggChart.destroy();
   nwAggChart=new Chart(document.getElementById('nwAggChart'),{type:'line',data:{datasets:[{label:'NY total',data:pts,borderColor:accent,backgroundColor:accent+'22',fill:true,tension:0.2,pointRadius:0,borderWidth:2,spanGaps:true}]},options:nwOpts()});}
 function renderNwOpChart(){const ds=[];for(const {e} of nwRanked()){if(!Nw.active.has(e))continue;ds.push({label:e,data:nwSeries(wk=>nwVal(e,wk)),borderColor:nwColor(e),backgroundColor:nwColor(e),fill:false,tension:0.2,pointRadius:0,borderWidth:2,spanGaps:true});}
@@ -1169,9 +1183,10 @@ function renderNwKpis(){const grid=document.getElementById('nwKpiGrid');grid.inn
 function renderNwTable(){const wa=nwWeeksAll();const sw=nwSelWeek();const idx=wa.indexOf(sw);const pw=idx>0?wa[idx-1]:null;const yw=idx>=52?wa[idx-52]:null;
   const ents=nwRanked();
   const grand=(Nw.metric==='hold')?0:ents.reduce((a,x)=>a+(nwVal(x.e,sw)||0),0);
-  const rows=ents.map(({e})=>{const cur=nwVal(e,sw);const vp=pw?nwVal(e,pw):null;const vy=yw?nwVal(e,yw):null;return {e,cur,wow:(vp&&cur!=null)?((cur-vp)/vp*100):null,yoy:(vy&&cur!=null)?((cur-vy)/vy*100):null,share:(Nw.metric!=='hold'&&cur!=null&&grand)?cur/grand*100:null};});
+  const ok=(e,w)=>w&&!isPlaceholder(DETAILED_NYW.ops[e][w]);
+  const rows=ents.map(({e})=>{const cur=nwVal(e,sw);const vp=ok(e,sw)&&ok(e,pw)?nwVal(e,pw):null;const vy=ok(e,sw)&&ok(e,yw)?nwVal(e,yw):null;return {e,cur,wow:(vp&&cur!=null)?((cur-vp)/vp*100):null,yoy:(vy&&cur!=null)?((cur-vy)/vy*100):null,share:(Nw.metric!=='hold'&&cur!=null&&grand)?cur/grand*100:null};});
   document.getElementById('nwTableTitle').textContent='NY operators — '+nwLabel()+' ('+nwWkLabel(sw).replace('wk end ','wk ')+')';
-  document.getElementById('nwTableNote').textContent='WoW vs prior week · YoY vs 52 weeks prior';
+  document.getElementById('nwTableNote').textContent='WoW vs prior week · YoY vs 52 weeks prior · weeks an operator did not report are left out';
   document.getElementById('nwTableHead').innerHTML='<tr><th>Operator</th><th class="text-right">'+nwLabel()+'</th><th class="text-right">WoW %</th><th class="text-right">YoY %</th><th class="text-right">Share</th></tr>';
   document.getElementById('nwTableBody').innerHTML=rows.map(r=>'<tr><td><span class="swatch" style="background:'+nwColor(r.e)+'"></span>'+r.e+'</td><td class="text-right">'+nwFmtVal(r.cur)+'</td><td class="text-right '+pctCls(r.wow)+'">'+fmtPct(r.wow)+'</td><td class="text-right '+pctCls(r.yoy)+'">'+fmtPct(r.yoy)+'</td><td class="text-right text-muted">'+(r.share==null?'—':r.share.toFixed(1)+'%')+'</td></tr>').join('');}
 
@@ -1184,7 +1199,7 @@ function nwQAgg(ops,qkey,qw){let sh=0,sr=0,ok=false;for(const wk of qw[qkey]){fo
 function nwQValOp(op,qkey,qw){return nwQAgg([op],qkey,qw);}
 function nwQYoYFor(ops,qkey,qw){const wa=nwWeeksAll();let ch=0,cr=0,ph=0,pr=0,have=false;
   for(const wk of qw[qkey]){const i=wa.indexOf(wk);const pi=i-52;if(pi<0)continue;const pwk=wa[pi];
-    for(const e of ops){const c=DETAILED_NYW.ops[e][wk],p=DETAILED_NYW.ops[e][pwk];if(!c||!p)continue;
+    for(const e of ops){const c=DETAILED_NYW.ops[e][wk],p=DETAILED_NYW.ops[e][pwk];if(isPlaceholder(c)||isPlaceholder(p))continue;
       if(c.h!=null&&p.h!=null){ch+=c.h;ph+=p.h;have=true;}
       if(c.r!=null&&p.r!=null){cr+=c.r;pr+=p.r;have=true;}}}
   if(!have)return null;
